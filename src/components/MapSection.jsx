@@ -1,19 +1,47 @@
-import { useState, useRef } from "react"
-import Map, { Marker, NavigationControl } from "react-map-gl"
-import { MapPin, Navigation } from "lucide-react"
+import { useEffect, useRef, useState } from "react"
+import mapboxgl from "mapbox-gl"
 import { homestays } from "../data/homestays"
 import "mapbox-gl/dist/mapbox-gl.css"
+import { Navigation } from "lucide-react"
 
-const MAPBOX_TOKEN = "pk.eyJ1IjoiZGVtby11c2VyIiwiYSI6ImNsZG1vb3BhNzBhcnYzcW1udWkxeGo2dmsifQ.demo"
+mapboxgl.accessToken = "pk.eyJ1IjoiYmhhaXJhdjgwMTkiLCJhIjoiY21tYndveHN3MDA2ZDJxcGxxMHhpNm52NiJ9.qquvnGMlnzthqHVCynXNkQ"
 
 export default function MapSection({ onSelectHomestay }) {
+  const mapContainer = useRef(null)
+  const map = useRef(null)
   const [locationEnabled, setLocationEnabled] = useState(false)
-  const [userLocation, setUserLocation] = useState(null)
+
+  useEffect(() => {
+    if (map.current) return
+    map.current = new mapboxgl.Map({
+      container: mapContainer.current,
+      style: "mapbox://styles/mapbox/light-v11",
+      center: [94.2037, 26.7509],
+      zoom: 11,
+    })
+
+    map.current.addControl(new mapboxgl.NavigationControl(), "top-right")
+
+    homestays.forEach(h => {
+      const el = document.createElement("button")
+      el.className = "bg-[#2D5A3D] text-white text-xs px-2 py-1 rounded-full shadow-md hover:bg-[#8B6914] transition"
+      el.innerText = `₹${h.price}`
+      el.onclick = () => onSelectHomestay(h)
+
+      new mapboxgl.Marker({ element: el })
+        .setLngLat([h.lng, h.lat])
+        .addTo(map.current)
+    })
+  }, [])
 
   const enableLocation = () => {
     navigator.geolocation.getCurrentPosition(pos => {
-      setUserLocation({ lat: pos.coords.latitude, lng: pos.coords.longitude })
+      const { latitude, longitude } = pos.coords
       setLocationEnabled(true)
+      new mapboxgl.Marker({ color: "#3B82F6" })
+        .setLngLat([longitude, latitude])
+        .addTo(map.current)
+      map.current.flyTo({ center: [longitude, latitude], zoom: 12 })
     })
   }
 
@@ -26,29 +54,7 @@ export default function MapSection({ onSelectHomestay }) {
           {locationEnabled ? "Location Active" : "Use My Location"}
         </button>
       </div>
-      <div className="rounded-2xl overflow-hidden shadow-md h-[420px] w-full">
-        <Map
-          initialViewState={{ longitude: 94.2037, latitude: 26.7509, zoom: 11 }}
-          style={{ width: "100%", height: "100%" }}
-          mapStyle="mapbox://styles/mapbox/light-v11"
-          mapboxAccessToken={MAPBOX_TOKEN}
-        >
-          <NavigationControl position="top-right" />
-          {homestays.map(h => (
-            <Marker key={h.id} longitude={h.lng} latitude={h.lat} anchor="bottom">
-              <button onClick={() => onSelectHomestay(h)}
-                className="bg-[#2D5A3D] text-white text-xs px-2 py-1 rounded-full shadow-md hover:bg-[#8B6914] transition flex items-center gap-1">
-                <MapPin size={10} /> ₹{h.price}
-              </button>
-            </Marker>
-          ))}
-          {userLocation && (
-            <Marker longitude={userLocation.lng} latitude={userLocation.lat}>
-              <div className="w-4 h-4 rounded-full bg-blue-500 border-2 border-white shadow-md" />
-            </Marker>
-          )}
-        </Map>
-      </div>
+      <div ref={mapContainer} className="rounded-2xl overflow-hidden shadow-md h-[420px] w-full" />
     </div>
   )
 }
