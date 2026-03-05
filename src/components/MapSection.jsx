@@ -9,10 +9,10 @@ mapboxgl.accessToken = "pk.eyJ1IjoiYmhhaXJhdjgwMTkiLCJhIjoiY21tYndveHN3MDA2ZDJxc
 export default function MapSection({ onSelectHomestay, triggerZoom = false }) {
   const mapContainer = useRef(null)
   const map = useRef(null)
-  const mapLoaded = useRef(false)
   const [locationEnabled, setLocationEnabled] = useState(false)
   const [error, setError] = useState(null)
 
+  // Initialize map
   useEffect(() => {
     if (map.current || !mapContainer.current) return
     
@@ -23,12 +23,6 @@ export default function MapSection({ onSelectHomestay, triggerZoom = false }) {
         center: [78.9629, 20.5937],
         zoom: 4,
       })
-
-      const handleLoad = () => {
-        mapLoaded.current = true
-      }
-
-      map.current.on("load", handleLoad)
 
       map.current.addControl(new mapboxgl.NavigationControl(), "top-right")
 
@@ -42,21 +36,17 @@ export default function MapSection({ onSelectHomestay, triggerZoom = false }) {
           .setLngLat([h.lng, h.lat])
           .addTo(map.current)
       })
-
-      return () => {
-        map.current?.off("load", handleLoad)
-      }
     } catch (err) {
       console.error("Map initialization error:", err)
       setError("Failed to load map")
     }
   }, [])
 
-  // Zoom animation from India → Jorhat, triggered by parent after map is visible
+  // Zoom animation from India → Jorhat
   useEffect(() => {
     if (!triggerZoom || !map.current) return
 
-    const doFly = () => {
+    const performZoom = () => {
       if (map.current) {
         map.current.flyTo({
           center: [94.2037, 26.7509],
@@ -67,17 +57,11 @@ export default function MapSection({ onSelectHomestay, triggerZoom = false }) {
       }
     }
 
-    if (mapLoaded.current) {
-      doFly()
+    // Use map.loaded() method to check if tiles are loaded
+    if (map.current.loaded()) {
+      performZoom()
     } else {
-      const handleLoad = () => {
-        mapLoaded.current = true
-        doFly()
-      }
-      map.current.once("load", handleLoad)
-      return () => {
-        map.current?.off("load", handleLoad)
-      }
+      map.current.once("load", performZoom)
     }
   }, [triggerZoom])
 
