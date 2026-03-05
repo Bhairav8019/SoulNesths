@@ -15,7 +15,7 @@ export default function MapSection({ onSelectHomestay }) {
     if (map.current) return
     map.current = new mapboxgl.Map({
       container: mapContainer.current,
-      style: "mapbox://styles/mapbox/light-v11",
+      style: "mapbox://styles/mapbox/satellite-streets-v12",
       center: [94.2037, 26.7509],
       zoom: 11,
     })
@@ -25,7 +25,7 @@ export default function MapSection({ onSelectHomestay }) {
     homestays.forEach(h => {
       const el = document.createElement("button")
       el.className = "bg-[#2D5A3D] text-white text-xs px-2 py-1 rounded-full shadow-md hover:bg-[#8B6914] transition"
-      el.innerText = `₹${h.price}`
+      el.innerText = `₹${h.startingPrice}`
       el.onclick = () => onSelectHomestay(h)
 
       new mapboxgl.Marker({ element: el })

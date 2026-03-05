@@ -1,4 +1,5 @@
 import { Search, Calendar, Users } from "lucide-react"
+import Navbar from "./navbar"
 
 export default function SearchBar() {
   return (
