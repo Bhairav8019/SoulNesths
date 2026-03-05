@@ -13,22 +13,35 @@ export default function HomePage({ onLogoClick }) {
 
   const [phase, setPhase] = useState(0)
   // 0 = name reveal
-  // 1 = name fade out
-  // 2 = homepage with map + list animations
+  // 1 = name fade out + map zoom
+  // 2 = homepage with full visibility
   const [mapVisible, setMapVisible] = useState(false)
   const [listVisible, setListVisible] = useState(false)
   const [nameVisible, setNameVisible] = useState(true)
+  const [introZooming, setIntroZooming] = useState(true)
 
   useEffect(() => {
+    // Timeline:
+    // 0ms: Name appears with animations (gold lines + text)
+    // 1800ms: Name fades out, map starts zooming from India to Jorhat
+    // 2600ms: Map becomes visible with fade-in
+    // 3500ms: Map zoom completes
+    // 3700ms: Homestay list slides up
+
     const t1 = setTimeout(() => setNameVisible(false), 1800)
     const t2 = setTimeout(() => setPhase(2), 2600)
-    const t3 = setTimeout(() => setMapVisible(true), 2700)
-    const t4 = setTimeout(() => setListVisible(true), 3200)
+    const t3 = setTimeout(() => setMapVisible(true), 2600)
+    const t4 = setTimeout(() => {
+      setIntroZooming(false)
+    }, 3500)
+    const t5 = setTimeout(() => setListVisible(true), 3700)
+    
     return () => {
       clearTimeout(t1)
       clearTimeout(t2)
       clearTimeout(t3)
       clearTimeout(t4)
+      clearTimeout(t5)
     }
   }, [])
 
@@ -116,7 +129,10 @@ export default function HomePage({ onLogoClick }) {
           transform: mapVisible ? "scale(1)" : "scale(0.9)",
           transition: "opacity 0.8s ease, transform 0.9s ease",
         }}>
-          <MapSection onSelectHomestay={(h) => navigate(`/homestay/${h.id}`)} />
+          <MapSection 
+            onSelectHomestay={(h) => navigate(`/homestay/${h.id}`)} 
+            shouldZoomIn={introZooming}
+          />
         </div>
       </div>
 

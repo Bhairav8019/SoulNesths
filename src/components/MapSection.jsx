@@ -6,18 +6,23 @@ import { Navigation } from "lucide-react"
 
 mapboxgl.accessToken = "pk.eyJ1IjoiYmhhaXJhdjgwMTkiLCJhIjoiY21tYndveHN3MDA2ZDJxcGxxMHhpNm52NiJ9.qquvnGMlnzthqHVCynXNkQ"
 
-export default function MapSection({ onSelectHomestay }) {
+export default function MapSection({ onSelectHomestay, shouldZoomIn = false }) {
   const mapContainer = useRef(null)
   const map = useRef(null)
   const [locationEnabled, setLocationEnabled] = useState(false)
 
   useEffect(() => {
     if (map.current) return
+    
+    // Start zoomed out to India if this is the intro
+    const initialZoom = shouldZoomIn ? 4 : 11
+    const initialCenter = shouldZoomIn ? [78.9629, 20.5937] : [94.2037, 26.7509]
+    
     map.current = new mapboxgl.Map({
       container: mapContainer.current,
       style: "mapbox://styles/mapbox/satellite-streets-v12",
-      center: [94.2037, 26.7509],
-      zoom: 11,
+      center: initialCenter,
+      zoom: initialZoom,
     })
 
     map.current.addControl(new mapboxgl.NavigationControl(), "top-right")
@@ -33,6 +38,20 @@ export default function MapSection({ onSelectHomestay }) {
         .addTo(map.current)
     })
   }, [])
+
+  // Zoom animation from India to Jorhat on intro
+  useEffect(() => {
+    if (shouldZoomIn && map.current) {
+      setTimeout(() => {
+        map.current.flyTo({
+          center: [94.2037, 26.7509],
+          zoom: 11,
+          duration: 3000,
+          easing: (t) => t * (2 - t), // smooth easing
+        })
+      }, 300)
+    }
+  }, [shouldZoomIn])
 
   const enableLocation = () => {
     navigator.geolocation.getCurrentPosition(pos => {
