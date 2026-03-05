@@ -5,30 +5,102 @@ import Navbar from "../components/Navbar"
 import SearchBar from "../components/SearchBar"
 import MapSection from "../components/MapSection"
 import HomestayList from "../components/HomestayList"
-import IntroSequence from "../components/IntroSequence"
 
 export default function HomePage({ onLogoClick }) {
   const topRef = useRef(null)
   const bottomRef = useRef(null)
   const navigate = useNavigate()
-  const [introPlayed, setIntroPlayed] = useState(false)
+
+  const [phase, setPhase] = useState(0)
+  // 0 = name reveal
+  // 1 = name fade out
+  // 2 = homepage with map + list animations
   const [mapVisible, setMapVisible] = useState(false)
   const [listVisible, setListVisible] = useState(false)
+  const [nameVisible, setNameVisible] = useState(true)
 
   useEffect(() => {
-    if (introPlayed) {
-      // Map zooms in
-      const t1 = setTimeout(() => setMapVisible(true), 100)
-      // List slides up after map
-      const t2 = setTimeout(() => setListVisible(true), 600)
-      return () => { clearTimeout(t1); clearTimeout(t2) }
+    const t1 = setTimeout(() => setNameVisible(false), 1800)
+    const t2 = setTimeout(() => setPhase(2), 2600)
+    const t3 = setTimeout(() => setMapVisible(true), 2700)
+    const t4 = setTimeout(() => setListVisible(true), 3200)
+    return () => {
+      clearTimeout(t1)
+      clearTimeout(t2)
+      clearTimeout(t3)
+      clearTimeout(t4)
     }
-  }, [introPlayed])
+  }, [])
 
   return (
     <div className="soul-bg min-h-screen bg-gradient-to-b from-[#1C1C1C] via-[#2C2C2C] to-[#1a1f1a]">
 
-      {!introPlayed && <IntroSequence onDone={() => setIntroPlayed(true)} />}
+      {/* Intro overlay */}
+      {phase < 2 && (
+        <div
+          style={{
+            position: "fixed",
+            inset: 0,
+            zIndex: 100,
+            background: "linear-gradient(160deg, #1C1C1C 0%, #1a1f1a 100%)",
+            display: "flex",
+            flexDirection: "column",
+            alignItems: "center",
+            justifyContent: "center",
+            gap: "12px",
+            opacity: nameVisible ? 1 : 0,
+            transition: "opacity 0.8s ease",
+          }}
+        >
+          {/* Top gold line */}
+          <div style={{
+            width: nameVisible ? "80px" : "0px",
+            height: "1px",
+            background: "linear-gradient(90deg, transparent, #8B6914, transparent)",
+            transition: "width 1s ease",
+          }} />
+
+          {/* Name */}
+          <h1
+            style={{
+              fontFamily: "'Playfair Display', serif",
+              opacity: nameVisible ? 1 : 0,
+              transform: nameVisible ? "translateY(0)" : "translateY(-10px)",
+              transition: "opacity 0.8s ease, transform 0.8s ease",
+              transitionDelay: "0.2s",
+              letterSpacing: "0.12em",
+              fontSize: "clamp(18px, 5vw, 28px)",
+              whiteSpace: "nowrap",
+            }}
+            className="text-[#F8F5F0] font-semibold text-center px-6"
+          >
+            Soul Nest Homestays
+          </h1>
+
+          {/* Tagline */}
+          <p
+            style={{
+              fontFamily: "'Playfair Display', serif",
+              opacity: nameVisible ? 0.6 : 0,
+              transition: "opacity 0.8s ease",
+              transitionDelay: "0.5s",
+              letterSpacing: "0.3em",
+              fontSize: "9px",
+            }}
+            className="text-[#8B6914] uppercase"
+          >
+            Jorhat · Assam · India
+          </p>
+
+          {/* Bottom gold line */}
+          <div style={{
+            width: nameVisible ? "80px" : "0px",
+            height: "1px",
+            background: "linear-gradient(90deg, transparent, #8B6914, transparent)",
+            transition: "width 1s ease",
+          }} />
+        </div>
+      )}
 
       <div ref={topRef} />
       <Navbar onWishlist={() => {}} onLogoClick={onLogoClick} />
@@ -38,26 +110,24 @@ export default function HomePage({ onLogoClick }) {
           <SearchBar />
         </div>
 
-        {/* Map with zoom-in animation */}
-        <div
-          style={{
-            opacity: mapVisible ? 1 : 0,
-            transform: mapVisible ? "scale(1)" : "scale(0.92)",
-            transition: "opacity 0.8s ease, transform 0.8s ease",
-          }}
-        >
+        {/* Map zoom in */}
+        <div style={{
+          opacity: mapVisible ? 1 : 0,
+          transform: mapVisible ? "scale(1)" : "scale(0.9)",
+          transition: "opacity 0.8s ease, transform 0.9s ease",
+        }}>
           <MapSection onSelectHomestay={(h) => navigate(`/homestay/${h.id}`)} />
         </div>
       </div>
 
-      {/* 3D Sliding sheet with slide-up animation */}
+      {/* Sliding sheet */}
       <div
         style={{
           borderRadius: "28px 28px 0 0",
           boxShadow: "0 -12px 40px rgba(0,0,0,0.5), 0 -4px 12px rgba(45,90,61,0.15)",
-          transform: listVisible ? "translateY(0)" : "translateY(120px)",
+          transform: listVisible ? "translateY(0)" : "translateY(140px)",
           opacity: listVisible ? 1 : 0,
-          transition: "transform 0.7s cubic-bezier(0.34, 1.56, 0.64, 1), opacity 0.7s ease",
+          transition: "transform 0.8s cubic-bezier(0.34, 1.56, 0.64, 1), opacity 0.6s ease",
           background: "linear-gradient(160deg, #232323 0%, #1a1f1a 100%)",
         }}
         className="relative z-10 mt-[-18px] pb-28 min-h-[60vh]"
