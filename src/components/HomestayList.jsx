@@ -1,7 +1,6 @@
-import { useState } from "react"
 import { Heart, Star, PhoneCall, Info } from "lucide-react"
+import { useWishlist } from "../context/WishlistContext"
 import { homestays } from "../data/homestays"
-import Navbar from "./navbar"
 
 function sortHomestays(list) {
   const ours = list.filter(h => h.isOurs && h.available)
@@ -10,24 +9,49 @@ function sortHomestays(list) {
   return ours.length > 0 ? [...ours, ...others] : [...oursBooked, ...others]
 }
 
-export default function HomestayList({ onSelectHomestay }) {
-  const sorted = sortHomestays(homestays)
-  const [wishlisted, setWishlisted] = useState({})
+export default function HomestayList({ onSelectHomestay, searchCheckIn = null, searchCheckOut = null, searchGuests = null }) {
+  const { toggleWishlist, isWishlisted } = useWishlist()
 
-  const toggleWishlist = (e, id) => {
-    e.stopPropagation()
-    setWishlisted(prev => ({ ...prev, [id]: !prev[id] }))
+  // Filter homestays based on search criteria
+  const getFilteredHomestays = () => {
+    return homestays.filter(h => {
+      // Check guest capacity if searchGuests is specified
+      if (searchGuests && searchGuests > 0) {
+        const hasCapacity = h.rooms.some(room => room.maxGuests >= searchGuests)
+        if (!hasCapacity) return false
+      }
+      // Date availability will be controlled by admin updates in future
+      return true
+    })
   }
+
+  const filtered = getFilteredHomestays()
+  const sorted = sortHomestays(filtered)
 
   return (
     <div className="w-full px-4 pb-8">
       <div className="max-w-3xl mx-auto">
-        <p style={{ fontFamily: "'Playfair Display', serif" }}
-          className="text-[#F8F5F0] text-lg font-semibold mb-4">
-          Homestays in Jorhat
-        </p>
+        <div className="flex items-baseline gap-3 mb-4">
+          <p style={{ fontFamily: "'Playfair Display', serif" }}
+            className="text-[#F8F5F0] text-lg font-semibold">
+            {searchGuests ? `Homestays for ${searchGuests} Guest${searchGuests !== 1 ? 's' : ''}` : "Homestays in Jorhat"}
+          </p>
+          {searchGuests && (
+            <span className="text-xs text-[#8B6914]">
+              {sorted.length} available
+            </span>
+          )}
+        </div>
         <div className="flex flex-col gap-3">
-          {sorted.map(h => (
+          {sorted.length === 0 ? (
+            <div className="text-center py-8">
+              <p className="text-[#9a9a9a] text-sm">
+                {searchGuests ? `No homestays available for ${searchGuests} guest${searchGuests !== 1 ? 's' : ''}` : "No homestays found"}
+              </p>
+              <p className="text-xs text-[#555] mt-2">Try adjusting your search criteria</p>
+            </div>
+          ) : (
+            sorted.map(h => (
             <button key={h.id} onClick={() => onSelectHomestay(h)}
               className="flex items-center gap-4 bg-[#2a2a2a] rounded-2xl p-3 shadow-sm border border-[#3a3a3a] hover:border-[#8B6914] transition text-left w-full">
               <img src={h.image} alt={h.name}
@@ -51,17 +75,18 @@ export default function HomestayList({ onSelectHomestay }) {
                   <span className="text-xs text-[#9a9a9a]">({h.reviews} reviews)</span>
                 </div>
                 <p className="text-sm font-semibold text-[#2D5A3D] mt-1">
-                  From ₹{h.startingPrice} <span className="text-xs font-normal text-[#9a9a9a]">/ night</span>
+                  From ₹{h.startingPrice}
+                  <span className="text-xs font-normal text-[#9a9a9a]"> / night</span>
                 </p>
               </div>
               <button
-                onClick={(e) => toggleWishlist(e, h.id)}
+                onClick={(e) => { e.stopPropagation(); toggleWishlist(h) }}
                 style={{ transition: "transform 0.2s ease, color 0.2s ease" }}
-                className={`flex-shrink-0 ${wishlisted[h.id] ? "text-red-500 scale-125" : "text-[#555]"} hover:text-red-500`}>
-                <Heart size={18} fill={wishlisted[h.id] ? "currentColor" : "none"} />
+                className={`flex-shrink-0 ${isWishlisted(h.id) ? "text-red-500 scale-125" : "text-[#555]"} hover:text-red-500`}>
+                <Heart size={18} fill={isWishlisted(h.id) ? "currentColor" : "none"} />
               </button>
             </button>
-          ))}
+          )))}
         </div>
         <div className="flex gap-3 mt-6">
           <button className="flex-1 flex items-center justify-center gap-2 border border-[#2D5A3D] text-[#2D5A3D] rounded-xl py-3 text-sm hover:bg-[#2D5A3D] hover:text-white transition">

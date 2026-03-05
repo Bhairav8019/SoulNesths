@@ -1,12 +1,13 @@
 import { useState, useEffect, useRef } from "react"
-import { useParams, useNavigate } from "react-router-dom"
+import { useParams, useNavigate, useLocation } from "react-router-dom"
 import { homestays } from "../data/homestays"
+import { useWishlist } from "../context/WishlistContext"
 import {
   ArrowLeft, ChevronLeft, ChevronRight, MapPin, Star,
   Users, Calendar, Wifi, Car, Tv, Droplets,
   UtensilsCrossed, BedDouble, Wind, Heart, X, User, Timer
 } from "lucide-react"
-import Navbar from "../components/navbar"
+import Navbar from "../components/Navbar"
 
 const amenities = [
   { icon: <Wifi size={16} />, label: "Free WiFi" },
@@ -211,15 +212,58 @@ function BookingConfirmPopup({ h, selectedRoom, checkIn, checkOut, guests, night
 export default function HomestayPage({ onLogoClick }) {
   const { id } = useParams()
   const navigate = useNavigate()
+  const location = useLocation()
   const h = homestays.find(h => h.id === id)
   const [imgIndex, setImgIndex] = useState(0)
-  const [checkIn, setCheckIn] = useState("")
-  const [checkOut, setCheckOut] = useState("")
-  const [guests, setGuests] = useState(1)
+  
+  // Get search data from location state if available
+  const locationState = location.state || {}
+  const searchData = locationState.searchData || {}
+  
+  // Parse dates if they come as strings, ensure they're ISO format for date inputs
+  const parseSearchDate = (dateStr) => {
+    if (!dateStr) return ""
+    if (dateStr.includes("T")) return dateStr.split("T")[0] // Already ISO format
+    const d = new Date(dateStr)
+    if (isNaN(d.getTime())) return ""
+    return d.toISOString().split("T")[0]
+  }
+  
+  const [checkIn, setCheckIn] = useState(parseSearchDate(searchData.checkIn) || "")
+  const [checkOut, setCheckOut] = useState(parseSearchDate(searchData.checkOut) || "")
+  const [guests, setGuests] = useState(searchData.guests ? parseInt(searchData.guests) : 1)
+  
+  // Check if search data is currently active (based on state, not location)
+  const hasSearchData = !!(checkIn || checkOut || (guests && guests > 1))
   const [selectedRoom, setSelectedRoom] = useState(null)
   const [showLoginPrompt, setShowLoginPrompt] = useState(false)
   const [showBookingConfirm, setShowBookingConfirm] = useState(false)
   const [showNestEscapes, setShowNestEscapes] = useState(false)
+  const { toggleWishlist, isWishlisted } = useWishlist()
+
+  // Date validation helpers
+  const getTodayDate = () => new Date().toISOString().split("T")[0]
+
+  const handleCheckInChange = (value) => {
+    const today = getTodayDate()
+    if (value < today) return // Prevent past dates
+    setCheckIn(value)
+    // If check-out is set and before new check-in, reset it
+    if (checkOut && checkOut < value) {
+      setCheckOut("")
+    }
+  }
+
+  const handleCheckOutChange = (value) => {
+    // Can't set check-out before check-in
+    if (checkIn && value < checkIn) return
+    // If no check-in set, require at least today + 1
+    if (!checkIn) {
+      const today = getTodayDate()
+      if (value <= today) return
+    }
+    setCheckOut(value)
+  }
 
   // Simulated — replace with real Firebase auth state in Phase 4
   const [loggedIn] = useState(false)
@@ -347,6 +391,13 @@ export default function HomestayPage({ onLogoClick }) {
                 💑 Couple Friendly
               </span>
             </div>
+            <button
+              onClick={() => toggleWishlist(h)}
+              style={{ transition: "transform 0.2s ease" }}
+              className={`flex items-center gap-2 text-sm mt-2 ${isWishlisted(h.id) ? "text-red-500" : "text-[#9a9a9a] hover:text-red-500"} transition`}>
+              <Heart size={16} fill={isWishlisted(h.id) ? "currentColor" : "none"} />
+              {isWishlisted(h.id) ? "Wishlisted" : "Save to Wishlist"}
+            </button>
           </div>
           <div className="flex items-center gap-1 bg-[#2a2a2a] px-3 py-1.5 rounded-xl border border-[#3a3a3a]">
             <Star size={13} className="text-[#8B6914] fill-[#8B6914]" />
@@ -377,6 +428,31 @@ export default function HomestayPage({ onLogoClick }) {
 
         <div className="border-t border-[#3a3a3a] my-6" />
 
+        {/* Search Criteria Banner */}
+        {hasSearchData && (
+          <div className="bg-gradient-to-r from-[#8B6914]/20 to-[#2D5A3D]/20 rounded-2xl px-4 py-3 mb-6 border border-[#8B6914]/30 flex items-center justify-between animate-fadeIn">
+            <div className="flex-1">
+              <p className="text-[#8B6914] font-semibold text-sm mb-2">✦ Your Search Details Applied</p>
+              <div className="flex flex-wrap gap-3 text-xs text-[#F8F5F0]">
+                {checkIn && (
+                  <div>📅 {new Date(checkIn).toLocaleDateString("en-IN", { day: "2-digit", month: "short", year: "2-digit" })}</div>
+                )}
+                {checkOut && (
+                  <div>→ {new Date(checkOut).toLocaleDateString("en-IN", { day: "2-digit", month: "short", year: "2-digit" })}</div>
+                )}
+                {guests && guests > 1 && (
+                  <div>👥 {guests} {guests === 1 ? "Guest" : "Guests"}</div>
+                )}
+              </div>
+            </div>
+            <button 
+              onClick={() => { setCheckIn(""); setCheckOut(""); setGuests(1); }}
+              className="flex-shrink-0 text-[#9a9a9a] hover:text-[#F8F5F0] transition text-xs underline ml-4">
+              Clear
+            </button>
+          </div>
+        )}
+
         {/* Offer Banner */}
         {new Date() <= new Date(h.offerExpiry) && (
           <div className="bg-gradient-to-r from-[#2D5A3D] to-[#8B6914] rounded-2xl px-4 py-3 mb-6 flex items-center justify-between">
@@ -396,7 +472,13 @@ export default function HomestayPage({ onLogoClick }) {
             className="text-[#F8F5F0] text-lg font-semibold mb-3">Choose Your Room</h2>
           <div className="flex flex-col gap-3">
             {h.rooms.map(room => (
-              <button key={room.id} onClick={() => setSelectedRoom(room)}
+              <button key={room.id} onClick={() => { 
+                setSelectedRoom(room)
+                // Preserve searched guest count if room can accommodate it, else adjust to max
+                if (guests > room.maxGuests) {
+                  setGuests(room.maxGuests)
+                }
+              }}
                 className={`w-full text-left bg-[#2a2a2a] rounded-2xl p-4 border-2 transition ${selectedRoom?.id === room.id ? "border-[#8B6914]" : "border-[#3a3a3a] hover:border-[#2D5A3D]"}`}>
                 <div className="flex items-center justify-between">
                   <div>
@@ -442,7 +524,7 @@ export default function HomestayPage({ onLogoClick }) {
                   <Calendar size={11} /> Check-in
                 </p>
                 <input type="date" value={checkIn}
-                  onChange={e => setCheckIn(e.target.value)}
+                  onChange={e => handleCheckInChange(e.target.value)}
                   min={new Date().toISOString().split("T")[0]}
                   className="bg-transparent text-[#F8F5F0] text-sm outline-none w-full" />
               </div>
@@ -451,7 +533,7 @@ export default function HomestayPage({ onLogoClick }) {
                   <Calendar size={11} /> Check-out
                 </p>
                 <input type="date" value={checkOut}
-                  onChange={e => setCheckOut(e.target.value)}
+                  onChange={e => handleCheckOutChange(e.target.value)}
                   min={checkIn || new Date().toISOString().split("T")[0]}
                   className="bg-transparent text-[#F8F5F0] text-sm outline-none w-full" />
               </div>
@@ -464,10 +546,14 @@ export default function HomestayPage({ onLogoClick }) {
                 <button onClick={() => setGuests(g => Math.max(1, g - 1))}
                   className="w-8 h-8 rounded-full bg-[#2a2a2a] border border-[#3a3a3a] text-[#F8F5F0] flex items-center justify-center hover:border-[#8B6914] transition text-lg">−</button>
                 <span className="text-[#F8F5F0] font-semibold w-6 text-center">{guests}</span>
-                <button onClick={() => setGuests(g => Math.min(10, g + 1))}
+                <button onClick={() => setGuests(g => Math.min(selectedRoom.maxGuests, g + 1))}
                   className="w-8 h-8 rounded-full bg-[#2a2a2a] border border-[#3a3a3a] text-[#F8F5F0] flex items-center justify-center hover:border-[#8B6914] transition text-lg">+</button>
                 <span className="text-[#9a9a9a] text-sm">{guests === 1 ? "1 guest" : `${guests} guests`}</span>
               </div>
+              <p className="text-[#9a9a9a] text-xs mt-2 italic">
+                ✦ Max {selectedRoom.maxGuests} guests for {selectedRoom.name}
+                {checkIn && checkOut ? ` · ${nights} ${nights === 1 ? "night" : "nights"} selected` : ""}
+              </p>
             </div>
             <div className="border-t border-[#3a3a3a] pt-4 mb-5 flex flex-col gap-2">
               <div className="flex justify-between text-sm">

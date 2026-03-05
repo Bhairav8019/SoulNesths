@@ -19,6 +19,7 @@ export const homestays = [
     isOurs: true,
     available: true,
     offerExpiry: "2026-03-27",
+    totalMaxGuests: 14,
     rooms: [
       {
         id: "standard",
@@ -27,6 +28,7 @@ export const homestays = [
         discountPrice: null,
         discount: false,
         description: "Comfortable and cozy room for a peaceful stay.",
+        maxGuests: 3,
       },
       {
         id: "deluxe",
@@ -35,6 +37,7 @@ export const homestays = [
         discountPrice: null,
         discount: false,
         description: "Spacious deluxe room with premium amenities.",
+        maxGuests: 3,
       },
       {
         id: "premium-1bhk",
@@ -43,6 +46,7 @@ export const homestays = [
         discountPrice: 1750,
         discount: true,
         description: "Luxurious 1 BHK with full kitchen and living area.",
+        maxGuests: 3,
       },
       {
         id: "premium-2bhk",
@@ -51,6 +55,7 @@ export const homestays = [
         discountPrice: 2450,
         discount: true,
         description: "Expansive 2 BHK perfect for families or groups.",
+        maxGuests: 5,
       },
     ],
   },
