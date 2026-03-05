@@ -27,17 +27,49 @@ export default function LoadingScreen({ onDone }) {
   }, [index])
 
   return (
-    <div className="fixed inset-0 bg-[#1C1C1C] flex items-center justify-center">
+    <div className="fixed inset-0 bg-[#1C1C1C] flex flex-col items-center justify-center gap-6">
+
+      {/* Luxury loading circle */}
+      <div className="relative w-10 h-10">
+        <div style={{
+          width: "40px",
+          height: "40px",
+          borderRadius: "50%",
+          border: "1.5px solid transparent",
+          borderTopColor: "#8B6914",
+          borderRightColor: "#2D5A3D",
+          animation: "spin 1.4s linear infinite",
+        }} />
+        <div style={{
+          position: "absolute",
+          inset: "5px",
+          borderRadius: "50%",
+          border: "1px solid transparent",
+          borderTopColor: "#8B6914",
+          opacity: 0.4,
+          animation: "spin 2s linear infinite reverse",
+        }} />
+      </div>
+
+      {/* Quote text */}
       <p
         style={{
           fontFamily: "'Playfair Display', serif",
           transition: "opacity 0.6s ease",
           opacity: visible ? 1 : 0,
+          fontSize: "clamp(13px, 3.5vw, 18px)",
+          whiteSpace: "nowrap",
         }}
-        className="text-[#F8F5F0] text-3xl md:text-5xl font-semibold tracking-widest text-center px-6"
+        className="text-[#F8F5F0] font-medium tracking-widest text-center px-4"
       >
         {quotes[index] ?? ""}
       </p>
+
+      <style>{`
+        @keyframes spin {
+          to { transform: rotate(360deg); }
+        }
+      `}</style>
     </div>
   )
 }
