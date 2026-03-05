@@ -18,30 +18,29 @@ export default function HomePage({ onLogoClick }) {
   const [mapVisible, setMapVisible] = useState(false)
   const [listVisible, setListVisible] = useState(false)
   const [nameVisible, setNameVisible] = useState(true)
-  const [introZooming, setIntroZooming] = useState(true)
+  const [triggerZoom, setTriggerZoom] = useState(false)
 
   useEffect(() => {
     // Timeline:
-    // 0ms: Name appears with animations (gold lines + text)
-    // 1800ms: Name fades out, map starts zooming from India to Jorhat
-    // 2600ms: Map becomes visible with fade-in
-    // 3500ms: Map zoom completes
-    // 3700ms: Homestay list slides up
+    // 0ms:    Name "Soul Nest Homestays" appears with luxury gold lines
+    // 2000ms: Name fades out
+    // 2800ms: Overlay removed, map revealed at India-level zoom
+    // 3000ms: Map flyTo from India → Jorhat begins (3s duration)
+    // 6200ms: Homestay list slides up from bottom
 
-    const t1 = setTimeout(() => setNameVisible(false), 1800)
-    const t2 = setTimeout(() => setPhase(2), 2600)
-    const t3 = setTimeout(() => setMapVisible(true), 2600)
-    const t4 = setTimeout(() => {
-      setIntroZooming(false)
-    }, 3500)
-    const t5 = setTimeout(() => setListVisible(true), 3700)
+    const t1 = setTimeout(() => setNameVisible(false), 2000)
+    const t2 = setTimeout(() => {
+      setPhase(2)
+      setMapVisible(true)
+    }, 2800)
+    const t3 = setTimeout(() => setTriggerZoom(true), 3000)
+    const t4 = setTimeout(() => setListVisible(true), 6200)
     
     return () => {
       clearTimeout(t1)
       clearTimeout(t2)
       clearTimeout(t3)
       clearTimeout(t4)
-      clearTimeout(t5)
     }
   }, [])
 
@@ -131,7 +130,7 @@ export default function HomePage({ onLogoClick }) {
         }}>
           <MapSection 
             onSelectHomestay={(h) => navigate(`/homestay/${h.id}`)} 
-            shouldZoomIn={introZooming}
+            triggerZoom={triggerZoom}
           />
         </div>
       </div>

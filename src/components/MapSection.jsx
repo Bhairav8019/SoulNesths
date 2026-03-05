@@ -6,7 +6,7 @@ import { Navigation } from "lucide-react"
 
 mapboxgl.accessToken = "pk.eyJ1IjoiYmhhaXJhdjgwMTkiLCJhIjoiY21tYndveHN3MDA2ZDJxcGxxMHhpNm52NiJ9.qquvnGMlnzthqHVCynXNkQ"
 
-export default function MapSection({ onSelectHomestay, shouldZoomIn = false }) {
+export default function MapSection({ onSelectHomestay, triggerZoom = false }) {
   const mapContainer = useRef(null)
   const map = useRef(null)
   const [locationEnabled, setLocationEnabled] = useState(false)
@@ -14,15 +14,12 @@ export default function MapSection({ onSelectHomestay, shouldZoomIn = false }) {
   useEffect(() => {
     if (map.current) return
     
-    // Start zoomed out to India if this is the intro
-    const initialZoom = shouldZoomIn ? 4 : 11
-    const initialCenter = shouldZoomIn ? [78.9629, 20.5937] : [94.2037, 26.7509]
-    
+    // Always start at India level — the zoom animation comes later
     map.current = new mapboxgl.Map({
       container: mapContainer.current,
       style: "mapbox://styles/mapbox/satellite-streets-v12",
-      center: initialCenter,
-      zoom: initialZoom,
+      center: [78.9629, 20.5937],
+      zoom: 4,
     })
 
     map.current.addControl(new mapboxgl.NavigationControl(), "top-right")
@@ -39,19 +36,17 @@ export default function MapSection({ onSelectHomestay, shouldZoomIn = false }) {
     })
   }, [])
 
-  // Zoom animation from India to Jorhat on intro
+  // Zoom animation from India → Jorhat, triggered by parent after map is visible
   useEffect(() => {
-    if (shouldZoomIn && map.current) {
-      setTimeout(() => {
-        map.current.flyTo({
-          center: [94.2037, 26.7509],
-          zoom: 11,
-          duration: 3000,
-          easing: (t) => t * (2 - t), // smooth easing
-        })
-      }, 300)
+    if (triggerZoom && map.current) {
+      map.current.flyTo({
+        center: [94.2037, 26.7509],
+        zoom: 11,
+        duration: 3000,
+        easing: (t) => t * (2 - t),
+      })
     }
-  }, [shouldZoomIn])
+  }, [triggerZoom])
 
   const enableLocation = () => {
     navigator.geolocation.getCurrentPosition(pos => {
