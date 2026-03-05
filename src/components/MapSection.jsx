@@ -9,17 +9,21 @@ mapboxgl.accessToken = "pk.eyJ1IjoiYmhhaXJhdjgwMTkiLCJhIjoiY21tYndveHN3MDA2ZDJxc
 export default function MapSection({ onSelectHomestay, triggerZoom = false }) {
   const mapContainer = useRef(null)
   const map = useRef(null)
+  const mapLoaded = useRef(false)
   const [locationEnabled, setLocationEnabled] = useState(false)
 
   useEffect(() => {
     if (map.current) return
     
-    // Always start at India level — the zoom animation comes later
     map.current = new mapboxgl.Map({
       container: mapContainer.current,
       style: "mapbox://styles/mapbox/satellite-streets-v12",
       center: [78.9629, 20.5937],
       zoom: 4,
+    })
+
+    map.current.on("load", () => {
+      mapLoaded.current = true
     })
 
     map.current.addControl(new mapboxgl.NavigationControl(), "top-right")
@@ -38,13 +42,21 @@ export default function MapSection({ onSelectHomestay, triggerZoom = false }) {
 
   // Zoom animation from India → Jorhat, triggered by parent after map is visible
   useEffect(() => {
-    if (triggerZoom && map.current) {
+    if (!triggerZoom || !map.current) return
+
+    const doFly = () => {
       map.current.flyTo({
         center: [94.2037, 26.7509],
         zoom: 11,
         duration: 3000,
         easing: (t) => t * (2 - t),
       })
+    }
+
+    if (mapLoaded.current) {
+      doFly()
+    } else {
+      map.current.on("load", doFly)
     }
   }, [triggerZoom])
 
