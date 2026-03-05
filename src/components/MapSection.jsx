@@ -11,33 +11,45 @@ export default function MapSection({ onSelectHomestay, triggerZoom = false }) {
   const map = useRef(null)
   const mapLoaded = useRef(false)
   const [locationEnabled, setLocationEnabled] = useState(false)
+  const [error, setError] = useState(null)
 
   useEffect(() => {
-    if (map.current) return
+    if (map.current || !mapContainer.current) return
     
-    map.current = new mapboxgl.Map({
-      container: mapContainer.current,
-      style: "mapbox://styles/mapbox/satellite-streets-v12",
-      center: [78.9629, 20.5937],
-      zoom: 4,
-    })
+    try {
+      map.current = new mapboxgl.Map({
+        container: mapContainer.current,
+        style: "mapbox://styles/mapbox/satellite-streets-v12",
+        center: [78.9629, 20.5937],
+        zoom: 4,
+      })
 
-    map.current.on("load", () => {
-      mapLoaded.current = true
-    })
+      const handleLoad = () => {
+        mapLoaded.current = true
+      }
 
-    map.current.addControl(new mapboxgl.NavigationControl(), "top-right")
+      map.current.on("load", handleLoad)
 
-    homestays.forEach(h => {
-      const el = document.createElement("button")
-      el.className = "bg-[#2D5A3D] text-white text-xs px-2 py-1 rounded-full shadow-md hover:bg-[#8B6914] transition"
-      el.innerText = `₹${h.startingPrice}`
-      el.onclick = () => onSelectHomestay(h)
+      map.current.addControl(new mapboxgl.NavigationControl(), "top-right")
 
-      new mapboxgl.Marker({ element: el })
-        .setLngLat([h.lng, h.lat])
-        .addTo(map.current)
-    })
+      homestays.forEach(h => {
+        const el = document.createElement("button")
+        el.className = "bg-[#2D5A3D] text-white text-xs px-2 py-1 rounded-full shadow-md hover:bg-[#8B6914] transition"
+        el.innerText = `₹${h.startingPrice}`
+        el.onclick = () => onSelectHomestay(h)
+
+        new mapboxgl.Marker({ element: el })
+          .setLngLat([h.lng, h.lat])
+          .addTo(map.current)
+      })
+
+      return () => {
+        map.current?.off("load", handleLoad)
+      }
+    } catch (err) {
+      console.error("Map initialization error:", err)
+      setError("Failed to load map")
+    }
   }, [])
 
   // Zoom animation from India → Jorhat, triggered by parent after map is visible
@@ -45,18 +57,27 @@ export default function MapSection({ onSelectHomestay, triggerZoom = false }) {
     if (!triggerZoom || !map.current) return
 
     const doFly = () => {
-      map.current.flyTo({
-        center: [94.2037, 26.7509],
-        zoom: 11,
-        duration: 3000,
-        easing: (t) => t * (2 - t),
-      })
+      if (map.current) {
+        map.current.flyTo({
+          center: [94.2037, 26.7509],
+          zoom: 11,
+          duration: 3000,
+          easing: (t) => t * (2 - t),
+        })
+      }
     }
 
     if (mapLoaded.current) {
       doFly()
     } else {
-      map.current.on("load", doFly)
+      const handleLoad = () => {
+        mapLoaded.current = true
+        doFly()
+      }
+      map.current.once("load", handleLoad)
+      return () => {
+        map.current?.off("load", handleLoad)
+      }
     }
   }, [triggerZoom])
 
@@ -80,7 +101,13 @@ export default function MapSection({ onSelectHomestay, triggerZoom = false }) {
           {locationEnabled ? "Location Active" : "Use My Location"}
         </button>
       </div>
-      <div ref={mapContainer} className="rounded-2xl overflow-hidden shadow-md h-[420px] w-full" />
+      {error ? (
+        <div className="rounded-2xl overflow-hidden shadow-md h-[420px] w-full bg-[#2a2a2a] flex items-center justify-center text-[#F8F5F0]">
+          {error}
+        </div>
+      ) : (
+        <div ref={mapContainer} className="rounded-2xl overflow-hidden shadow-md h-[420px] w-full" />
+      )}
     </div>
   )
 }
