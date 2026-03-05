@@ -7,7 +7,9 @@ import HomestayPage from "./pages/HomestayPage"
 export default function App() {
   const [loading, setLoading] = useState(true)
 
-  const handleLogoClick = () => setLoading(true)
+  const handleLogoClick = () => {
+    setLoading(true)
+  }
 
   if (loading) return (
     <LoadingScreen onDone={() => {
