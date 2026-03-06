@@ -88,17 +88,17 @@ function OfferBanner({ offers }) {
     return () => clearInterval(id)
   }, [activeOffers])
 
-  // Auto-rotate between multiple offers every 5s
+  // Auto-rotate between multiple offers every 10s
   useEffect(() => {
     if (activeOffers.length < 2) return
-    const id = setInterval(() => setCurrent(c => (c + 1) % activeOffers.length), 5000)
+    const id = setInterval(() => setCurrent(c => (c + 1) % activeOffers.length), 10000)
     return () => clearInterval(id)
   }, [activeOffers.length])
 
   // Smooth marquee scroll for the offer text row
   useEffect(() => {
     const animate = () => {
-      scrollRef.current = (scrollRef.current + 0.4) % 100
+      scrollRef.current = (scrollRef.current + 0.15) % 100
       setScrollX(scrollRef.current)
       animRef.current = requestAnimationFrame(animate)
     }
@@ -128,13 +128,13 @@ function OfferBanner({ offers }) {
       {/* Marquee strip — running text row */}
       <div style={{
         borderBottom: `1px solid ${accent.border}20`,
-        padding: "5px 0",
+        padding: "3px 0",
         overflow: "hidden",
         whiteSpace: "nowrap",
       }}>
         <div style={{
           display: "inline-flex",
-          gap: "48px",
+          gap: "32px",
           transform: `translateX(-${scrollX}%)`,
           willChange: "transform",
         }}>
@@ -154,18 +154,18 @@ function OfferBanner({ offers }) {
       </div>
 
       {/* Main offer row */}
-      <div style={{ padding: "10px 14px 12px" }} className="flex items-center justify-between gap-3">
+      <div style={{ padding: "6px 12px 8px" }} className="flex items-center justify-between gap-2">
 
         {/* Left — label + text */}
-        <div className="flex items-center gap-3 min-w-0">
+        <div className="flex items-center gap-2 min-w-0">
           <span style={{
             background: accent.labelBg,
             border: `1px solid ${accent.border}`,
             color: accent.label,
-            fontSize: "8px",
+            fontSize: "7px",
             fontFamily: "'Playfair Display', serif",
             letterSpacing: "0.15em",
-            padding: "3px 7px",
+            padding: "2px 6px",
             borderRadius: "20px",
             whiteSpace: "nowrap",
             flexShrink: 0,
@@ -176,9 +176,9 @@ function OfferBanner({ offers }) {
             <p style={{
               fontFamily: "'Playfair Display', serif",
               color: accent.text,
-              fontSize: "13px",
+              fontSize: "12px",
               fontWeight: 700,
-              lineHeight: 1.2,
+              lineHeight: 1.1,
               whiteSpace: "nowrap",
               overflow: "hidden",
               textOverflow: "ellipsis",
@@ -187,8 +187,8 @@ function OfferBanner({ offers }) {
             </p>
             <p style={{
               color: accent.sub,
-              fontSize: "10px",
-              marginTop: "2px",
+              fontSize: "9px",
+              marginTop: "1px",
               whiteSpace: "nowrap",
               overflow: "hidden",
               textOverflow: "ellipsis",
@@ -203,17 +203,17 @@ function OfferBanner({ offers }) {
           <div style={{ flexShrink: 0, textAlign: "right" }}>
             <p style={{
               color: accent.sub,
-              fontSize: "8px",
+              fontSize: "7px",
               letterSpacing: "0.12em",
               textTransform: "uppercase",
-              marginBottom: "2px",
+              marginBottom: "1px",
             }}>
               Ends in
             </p>
             <p style={{
               fontFamily: "'Courier New', monospace",
               color: isUrgent ? "#e05555" : accent.timer,
-              fontSize: "13px",
+              fontSize: "12px",
               fontWeight: 700,
               letterSpacing: "0.06em",
               animation: isUrgent ? "pulse 1s ease-in-out infinite" : "none",
@@ -226,7 +226,7 @@ function OfferBanner({ offers }) {
 
       {/* Multi-offer dots */}
       {activeOffers.length > 1 && (
-        <div className="flex justify-center gap-1.5 pb-2">
+        <div className="flex justify-center gap-1 pb-1.5">
           {activeOffers.map((_, i) => (
             <button
               key={i}
