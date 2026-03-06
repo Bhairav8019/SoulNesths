@@ -32,27 +32,6 @@ const LANDMARKS = [
     lng: 92.99185,
     color: "#C8860A",
     glowColor: "rgba(200,134,10,0.6)",
-    svgIcon: `
-      <svg width="28" height="28" viewBox="0 0 28 28" fill="none" xmlns="http://www.w3.org/2000/svg">
-        <!-- Rhino body -->
-        <ellipse cx="14" cy="17" rx="9" ry="6" fill="#8B6914" stroke="#F8F5F0" stroke-width="0.8"/>
-        <!-- Rhino head -->
-        <ellipse cx="22" cy="14" rx="5" ry="4" fill="#8B6914" stroke="#F8F5F0" stroke-width="0.8"/>
-        <!-- Horn -->
-        <path d="M26 11 L28 7 L25 10 Z" fill="#F8F5F0"/>
-        <!-- Eye -->
-        <circle cx="24" cy="13" r="1" fill="#1C1C1C"/>
-        <!-- Ear -->
-        <path d="M21 11 L22 9 L23 11 Z" fill="#F8F5F0"/>
-        <!-- Legs -->
-        <rect x="7" y="21" width="2.5" height="4" rx="1" fill="#7A5C10"/>
-        <rect x="11" y="22" width="2.5" height="3.5" rx="1" fill="#7A5C10"/>
-        <rect x="15" y="22" width="2.5" height="3.5" rx="1" fill="#7A5C10"/>
-        <rect x="19" y="21" width="2.5" height="4" rx="1" fill="#7A5C10"/>
-        <!-- Tail -->
-        <path d="M5 17 Q2 15 3 13" stroke="#F8F5F0" stroke-width="1" fill="none" stroke-linecap="round"/>
-      </svg>
-    `,
   },
   {
     id: "majuli",
@@ -61,31 +40,6 @@ const LANDMARKS = [
     lng: 94.16583,
     color: "#9B3A6E",
     glowColor: "rgba(155,58,110,0.6)",
-    svgIcon: `
-      <svg width="28" height="28" viewBox="0 0 28 28" fill="none" xmlns="http://www.w3.org/2000/svg">
-        <!-- Bhaona mask face -->
-        <ellipse cx="14" cy="15" rx="10" ry="11" fill="#8B1A1A" stroke="#F8B400" stroke-width="1"/>
-        <!-- Forehead ornament -->
-        <path d="M9 7 Q14 3 19 7 Q14 5 9 7Z" fill="#F8B400"/>
-        <!-- Eyes - large theatrical -->
-        <ellipse cx="10" cy="13" rx="3" ry="2.5" fill="#F8F5F0"/>
-        <ellipse cx="18" cy="13" rx="3" ry="2.5" fill="#F8F5F0"/>
-        <circle cx="10" cy="13" r="1.5" fill="#1C1C1C"/>
-        <circle cx="18" cy="13" r="1.5" fill="#1C1C1C"/>
-        <circle cx="10.6" cy="12.4" r="0.5" fill="white"/>
-        <circle cx="18.6" cy="12.4" r="0.5" fill="white"/>
-        <!-- Nose -->
-        <path d="M13 16 L14 18 L15 16" stroke="#F8B400" stroke-width="1" fill="none"/>
-        <!-- Mouth - dramatic smile -->
-        <path d="M9 20 Q14 24 19 20" stroke="#F8B400" stroke-width="1.5" fill="none" stroke-linecap="round"/>
-        <!-- Mustache -->
-        <path d="M10 18 Q12 17 14 18 Q16 17 18 18" stroke="#F8F5F0" stroke-width="1" fill="none"/>
-        <!-- Crown horns -->
-        <path d="M7 7 L5 2 L9 6" fill="#F8B400"/>
-        <path d="M21 7 L23 2 L19 6" fill="#F8B400"/>
-        <path d="M14 5 L14 1 L16 5" fill="#F8B400"/>
-      </svg>
-    `,
   },
   {
     id: "sivasagar",
@@ -94,33 +48,6 @@ const LANDMARKS = [
     lng: 94.61907,
     color: "#1A5C8B",
     glowColor: "rgba(26,92,139,0.6)",
-    svgIcon: `
-      <svg width="28" height="28" viewBox="0 0 28 28" fill="none" xmlns="http://www.w3.org/2000/svg">
-        <!-- Ranghar pavilion base platform -->
-        <rect x="2" y="22" width="24" height="3" rx="1" fill="#8B6914" stroke="#F8F5F0" stroke-width="0.6"/>
-        <!-- Main structure -->
-        <rect x="5" y="16" width="18" height="8" rx="0.5" fill="#2D5A3D" stroke="#F8F5F0" stroke-width="0.6"/>
-        <!-- Arched openings -->
-        <path d="M8 24 L8 19 Q10 16.5 12 19 L12 24 Z" fill="#1C1C1C"/>
-        <path d="M16 24 L16 19 Q18 16.5 20 19 L20 24 Z" fill="#1C1C1C"/>
-        <!-- Second tier -->
-        <rect x="7" y="11" width="14" height="6" rx="0.5" fill="#3A7A52" stroke="#F8F5F0" stroke-width="0.6"/>
-        <!-- Second tier arches -->
-        <path d="M10 17 L10 14 Q12 11.5 14 14 L14 17 Z" fill="#1C1C1C"/>
-        <!-- Roof first tier -->
-        <path d="M3 16 Q14 11 25 16 Z" fill="#8B6914" stroke="#F8F5F0" stroke-width="0.6"/>
-        <!-- Roof second tier -->
-        <path d="M6 11 Q14 7 22 11 Z" fill="#C8860A" stroke="#F8F5F0" stroke-width="0.6"/>
-        <!-- Top pinnacle -->
-        <rect x="12" y="4" width="4" height="7" rx="0.5" fill="#2D5A3D" stroke="#F8F5F0" stroke-width="0.6"/>
-        <!-- Finial -->
-        <path d="M13 4 L14 1 L15 4 Z" fill="#F8B400"/>
-        <circle cx="14" cy="4" r="1" fill="#F8B400"/>
-        <!-- Decorative pillars -->
-        <rect x="5" y="16" width="1.5" height="8" fill="#C8860A"/>
-        <rect x="21.5" y="16" width="1.5" height="8" fill="#C8860A"/>
-      </svg>
-    `,
   },
 ]
 
@@ -206,13 +133,11 @@ export default function MapSection({ onSelectHomestay, searchQuery, searchCoords
         display: flex;
         flex-direction: column;
         align-items: center;
-        cursor: pointer;
+        pointer-events: none;
         filter: drop-shadow(0 0 8px ${landmark.glowColor});
-        transition: transform 0.2s ease, filter 0.2s ease;
       `
 
       el.innerHTML = `
-        <!-- GTA-style icon container -->
         <div style="
           position: relative;
           display: flex;
@@ -223,17 +148,16 @@ export default function MapSection({ onSelectHomestay, searchQuery, searchCoords
           <div style="
             background: linear-gradient(135deg, rgba(10,8,6,0.95), rgba(28,20,8,0.95));
             border: 1px solid ${landmark.color};
-            border-bottom: none;
             color: #F8F5F0;
             font-family: 'Playfair Display', serif;
             font-size: 9.5px;
             font-weight: 700;
-            padding: 3px 8px 2px 8px;
-            border-radius: 6px 6px 0 0;
+            padding: 4px 10px;
+            border-radius: 20px;
             white-space: nowrap;
             letter-spacing: 0.06em;
             text-transform: uppercase;
-            box-shadow: 0 -2px 10px rgba(0,0,0,0.6);
+            box-shadow: 0 2px 10px rgba(0,0,0,0.6);
             text-shadow: 0 0 8px ${landmark.color};
             display: flex;
             align-items: center;
@@ -249,60 +173,6 @@ export default function MapSection({ onSelectHomestay, searchQuery, searchCoords
               letter-spacing: 0.04em;
             ">${distLabel}</span>
           </div>
-
-          <!-- Icon box -->
-          <div style="
-            width: 42px;
-            height: 42px;
-            background: linear-gradient(145deg, rgba(15,12,8,0.97), rgba(25,20,10,0.97));
-            border: 1.5px solid ${landmark.color};
-            border-radius: 0 0 8px 8px;
-            display: flex;
-            align-items: center;
-            justify-content: center;
-            box-shadow:
-              0 4px 20px rgba(0,0,0,0.7),
-              0 0 12px ${landmark.glowColor},
-              inset 0 1px 0 rgba(255,255,255,0.05);
-            position: relative;
-            overflow: hidden;
-          ">
-            <!-- Corner accents GTA style -->
-            <div style="
-              position: absolute;
-              top: 2px; left: 2px;
-              width: 6px; height: 6px;
-              border-top: 1px solid ${landmark.color};
-              border-left: 1px solid ${landmark.color};
-              opacity: 0.7;
-            "></div>
-            <div style="
-              position: absolute;
-              top: 2px; right: 2px;
-              width: 6px; height: 6px;
-              border-top: 1px solid ${landmark.color};
-              border-right: 1px solid ${landmark.color};
-              opacity: 0.7;
-            "></div>
-            <div style="
-              position: absolute;
-              bottom: 2px; left: 2px;
-              width: 6px; height: 6px;
-              border-bottom: 1px solid ${landmark.color};
-              border-left: 1px solid ${landmark.color};
-              opacity: 0.7;
-            "></div>
-            <div style="
-              position: absolute;
-              bottom: 2px; right: 2px;
-              width: 6px; height: 6px;
-              border-bottom: 1px solid ${landmark.color};
-              border-right: 1px solid ${landmark.color};
-              opacity: 0.7;
-            "></div>
-            ${landmark.svgIcon}
-          </div>
-
           <!-- Stem -->
           <div style="
             width: 1.5px;
@@ -319,18 +189,6 @@ export default function MapSection({ onSelectHomestay, searchQuery, searchCoords
           "></div>
         </div>
       `
-
-      // Hover effect
-      el.onmouseenter = () => {
-        el.style.transform = "scale(1.12) translateY(-3px)"
-        el.style.filter = `drop-shadow(0 0 14px ${landmark.glowColor})`
-        el.style.zIndex = "10"
-      }
-      el.onmouseleave = () => {
-        el.style.transform = "scale(1)"
-        el.style.filter = `drop-shadow(0 0 8px ${landmark.glowColor})`
-        el.style.zIndex = "1"
-      }
 
       new mapboxgl.Marker({ element: el, anchor: "bottom" })
         .setLngLat([landmark.lng, landmark.lat])
