@@ -43,12 +43,6 @@ const nestEscapes = [
   { icon: "🌿", title: "More Coming Soon", desc: "Curated local experiences, heritage tours, and more being added.", tag: "Soon" },
 ]
 
-// Simulated login state — will be replaced by Firebase Auth in Phase 4
-const useAuth = () => {
-  const [loggedIn, setLoggedIn] = useState(false)
-  return { loggedIn, setLoggedIn }
-}
-
 function LoginPromptPopup({ onClose }) {
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center px-4"
@@ -134,38 +128,31 @@ function BookingConfirmPopup({ h, selectedRoom, checkIn, checkOut, guests, night
 
         {/* Summary Card */}
         <div className="bg-[#2a2a2a] border border-[#3a3a3a] rounded-2xl p-4 mb-4 flex flex-col gap-2.5">
-
           <div className="flex justify-between items-start">
             <span className="text-[#9a9a9a] text-xs">Homestay</span>
             <span style={{ fontFamily: "'Playfair Display', serif" }}
               className="text-[#F8F5F0] text-xs font-semibold text-right max-w-[55%]">{h.name}</span>
           </div>
-
           <div className="flex justify-between">
             <span className="text-[#9a9a9a] text-xs">Room</span>
             <span className="text-[#F8F5F0] text-xs font-medium">{selectedRoom.name}</span>
           </div>
-
           <div className="flex justify-between">
             <span className="text-[#9a9a9a] text-xs">Check-in</span>
             <span className="text-[#F8F5F0] text-xs">{new Date(checkIn).toLocaleDateString("en-IN", { day: "2-digit", month: "short", year: "numeric" })}</span>
           </div>
-
           <div className="flex justify-between">
             <span className="text-[#9a9a9a] text-xs">Check-out</span>
             <span className="text-[#F8F5F0] text-xs">{new Date(checkOut).toLocaleDateString("en-IN", { day: "2-digit", month: "short", year: "numeric" })}</span>
           </div>
-
           <div className="flex justify-between">
             <span className="text-[#9a9a9a] text-xs">Guests</span>
             <span className="text-[#F8F5F0] text-xs">{guests} {guests === 1 ? "Guest" : "Guests"}</span>
           </div>
-
           <div className="flex justify-between">
             <span className="text-[#9a9a9a] text-xs">Duration</span>
             <span className="text-[#F8F5F0] text-xs">{nights} {nights === 1 ? "Night" : "Nights"}</span>
           </div>
-
           <div className="border-t border-[#3a3a3a] pt-2 mt-1 flex flex-col gap-1.5">
             <div className="flex justify-between text-xs">
               <span className="text-[#9a9a9a]">₹{roomPrice} × {nights} nights</span>
@@ -180,7 +167,6 @@ function BookingConfirmPopup({ h, selectedRoom, checkIn, checkOut, guests, night
               <span className="text-[#9a9a9a]">₹{Math.max(0, subtotal - h.platformFee)}</span>
             </div>
           </div>
-
           <div className="border-t border-[#8B6914]/30 pt-2 flex justify-between items-center">
             <span className="text-[#F8F5F0] text-sm font-semibold">Pay Now</span>
             <span style={{ fontFamily: "'Playfair Display', serif" }}
@@ -191,13 +177,11 @@ function BookingConfirmPopup({ h, selectedRoom, checkIn, checkOut, guests, night
         <p className="text-[#9a9a9a] text-xs text-center mb-4">
           You will be redirected to the payment gateway to complete your booking securely via Razorpay.
         </p>
-
         <button onClick={onPay}
           className="w-full bg-[#2D5A3D] text-white py-4 rounded-2xl font-semibold text-sm hover:bg-[#8B6914] transition shadow-lg"
           style={{ fontFamily: "'Playfair Display', serif" }}>
           Proceed to Payment — ₹{h.platformFee}
         </button>
-
         <p className="text-center text-[#9a9a9a] text-xs mt-3">
           🔒 Secured by Razorpay · Full refund if cancelled 48 hrs before check-in
         </p>
@@ -215,25 +199,23 @@ export default function HomestayPage({ onLogoClick, loggedIn, onLogin, onLogout 
   const location = useLocation()
   const h = homestays.find(h => h.id === id)
   const [imgIndex, setImgIndex] = useState(0)
-  
+
   // Get search data from location state if available
   const locationState = location.state || {}
   const searchData = locationState.searchData || {}
-  
-  // Parse dates if they come as strings, ensure they're ISO format for date inputs
+
   const parseSearchDate = (dateStr) => {
     if (!dateStr) return ""
-    if (dateStr.includes("T")) return dateStr.split("T")[0] // Already ISO format
+    if (dateStr.includes("T")) return dateStr.split("T")[0]
     const d = new Date(dateStr)
     if (isNaN(d.getTime())) return ""
     return d.toISOString().split("T")[0]
   }
-  
+
   const [checkIn, setCheckIn] = useState(parseSearchDate(searchData.checkIn) || "")
   const [checkOut, setCheckOut] = useState(parseSearchDate(searchData.checkOut) || "")
   const [guests, setGuests] = useState(searchData.guests ? parseInt(searchData.guests) : 1)
-  
-  // Check if search data is currently active (based on state, not location)
+
   const hasSearchData = !!(checkIn || checkOut || (guests && guests > 1))
   const [selectedRoom, setSelectedRoom] = useState(null)
   const [showLoginPrompt, setShowLoginPrompt] = useState(false)
@@ -241,32 +223,23 @@ export default function HomestayPage({ onLogoClick, loggedIn, onLogin, onLogout 
   const [showNestEscapes, setShowNestEscapes] = useState(false)
   const { toggleWishlist, isWishlisted } = useWishlist()
 
-  // Date validation helpers
   const getTodayDate = () => new Date().toISOString().split("T")[0]
 
   const handleCheckInChange = (value) => {
     const today = getTodayDate()
-    if (value < today) return // Prevent past dates
+    if (value < today) return
     setCheckIn(value)
-    // If check-out is set and before new check-in, reset it
-    if (checkOut && checkOut < value) {
-      setCheckOut("")
-    }
+    if (checkOut && checkOut < value) setCheckOut("")
   }
 
   const handleCheckOutChange = (value) => {
-    // Can't set check-out before check-in
     if (checkIn && value < checkIn) return
-    // If no check-in set, require at least today + 1
     if (!checkIn) {
       const today = getTodayDate()
       if (value <= today) return
     }
     setCheckOut(value)
   }
-
-  // Simulated — replace with real Firebase auth state in Phase 4
-  const [loggedIn] = useState(false)
 
   if (!h) return (
     <div className="min-h-screen bg-[#1C1C1C] flex items-center justify-center text-[#F8F5F0]">
@@ -291,13 +264,12 @@ export default function HomestayPage({ onLogoClick, loggedIn, onLogin, onLogout 
 
   const handlePay = () => {
     setShowBookingConfirm(false)
-    // Razorpay integration comes in Phase 4
     alert("Redirecting to Razorpay... (Phase 4)")
   }
 
   return (
     <div className="soul-bg min-h-screen bg-gradient-to-b from-[#1C1C1C] via-[#2C2C2C] to-[#1a1f1a]">
-      <Navbar onWishlist={() => {}} onLogoClick={onLogoClick} loggedIn={loggedIn} onLogin={onLogin} onLogout={onLogout} />
+      <Navbar onLogoClick={onLogoClick} loggedIn={loggedIn} onLogin={onLogin} onLogout={onLogout} />
 
       {showLoginPrompt && <LoginPromptPopup onClose={() => setShowLoginPrompt(false)} />}
       {showBookingConfirm && selectedRoom && (
@@ -445,8 +417,8 @@ export default function HomestayPage({ onLogoClick, loggedIn, onLogin, onLogout 
                 )}
               </div>
             </div>
-            <button 
-              onClick={() => { setCheckIn(""); setCheckOut(""); setGuests(1); }}
+            <button
+              onClick={() => { setCheckIn(""); setCheckOut(""); setGuests(1) }}
               className="flex-shrink-0 text-[#9a9a9a] hover:text-[#F8F5F0] transition text-xs underline ml-4">
               Clear
             </button>
@@ -472,12 +444,9 @@ export default function HomestayPage({ onLogoClick, loggedIn, onLogin, onLogout 
             className="text-[#F8F5F0] text-lg font-semibold mb-3">Choose Your Room</h2>
           <div className="flex flex-col gap-3">
             {h.rooms.map(room => (
-              <button key={room.id} onClick={() => { 
+              <button key={room.id} onClick={() => {
                 setSelectedRoom(room)
-                // Preserve searched guest count if room can accommodate it, else adjust to max
-                if (guests > room.maxGuests) {
-                  setGuests(room.maxGuests)
-                }
+                if (guests > room.maxGuests) setGuests(room.maxGuests)
               }}
                 className={`w-full text-left bg-[#2a2a2a] rounded-2xl p-4 border-2 transition ${selectedRoom?.id === room.id ? "border-[#8B6914]" : "border-[#3a3a3a] hover:border-[#2D5A3D]"}`}>
                 <div className="flex items-center justify-between">
