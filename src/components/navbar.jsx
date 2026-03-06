@@ -1,11 +1,10 @@
-import { Heart, User, LogIn, LogOut, CalendarCheck } from "lucide-react"
+import { Heart, User, LogIn, LogOut, CalendarCheck, Images } from "lucide-react"
 import { useState } from "react"
 import { useNavigate } from "react-router-dom"
 import { useWishlist } from "../context/WishlistContext"
 
-export default function Navbar({ onLogoClick }) {
+export default function Navbar({ onLogoClick, loggedIn, onLogin, onLogout }) {
   const [userOpen, setUserOpen] = useState(false)
-  const [loggedIn, setLoggedIn] = useState(false)
   const navigate = useNavigate()
   const { wishlist } = useWishlist()
 
@@ -19,6 +18,7 @@ export default function Navbar({ onLogoClick }) {
         className="text-[#F8F5F0] text-xl font-semibold tracking-wide cursor-pointer hover:text-[#8B6914] transition select-none">
         Soul Nest Homestays
       </h1>
+
       <div className="flex items-center gap-4 relative">
 
         {/* Wishlist button */}
@@ -43,23 +43,45 @@ export default function Navbar({ onLogoClick }) {
         </button>
 
         {userOpen && (
-          <div className="absolute right-0 top-12 bg-[#2a2a2a] shadow-xl rounded-2xl w-44 overflow-hidden border border-[#3a3a3a]">
+          <div className="absolute right-0 top-12 bg-[#2a2a2a] shadow-xl rounded-2xl w-48 overflow-hidden border border-[#3a3a3a]">
+
+            {/* Login / Bookings — always shown */}
             {loggedIn ? (
+              <button
+                onClick={() => { navigate("/bookings"); setUserOpen(false) }}
+                className="w-full text-left px-4 py-3 text-sm text-[#F8F5F0] hover:bg-[#3a3a3a] transition flex items-center gap-2">
+                <CalendarCheck size={15} className="text-[#2D5A3D]" /> Bookings
+              </button>
+            ) : (
+              <button
+                onClick={() => { if (onLogin) onLogin(); setUserOpen(false) }}
+                className="w-full text-left px-4 py-3 text-sm text-[#F8F5F0] hover:bg-[#3a3a3a] transition flex items-center gap-2">
+                <LogIn size={15} className="text-[#2D5A3D]" /> Login
+              </button>
+            )}
+
+            {/* Divider */}
+            <div className="h-px bg-[#3a3a3a] mx-3" />
+
+            {/* Moments — visible to everyone */}
+            <button
+              onClick={() => { navigate("/moments"); setUserOpen(false) }}
+              className="w-full text-left px-4 py-3 text-sm text-[#F8F5F0] hover:bg-[#3a3a3a] transition flex items-center gap-2">
+              <Images size={15} className="text-[#8B6914]" />
+              <span>Moments</span>
+              <span className="ml-auto text-[10px] text-[#8B6914] border border-[#8B6914]/40 px-1.5 py-0.5 rounded-full tracking-wide">NEW</span>
+            </button>
+
+            {/* Divider + Logout (only when logged in) */}
+            {loggedIn && (
               <>
-                <button onClick={() => setUserOpen(false)}
-                  className="w-full text-left px-4 py-3 text-sm text-[#F8F5F0] hover:bg-[#3a3a3a] transition flex items-center gap-2">
-                  <CalendarCheck size={15} className="text-[#2D5A3D]" /> Bookings
-                </button>
-                <button onClick={() => { setLoggedIn(false); setUserOpen(false) }}
+                <div className="h-px bg-[#3a3a3a] mx-3" />
+                <button
+                  onClick={() => { if (onLogout) onLogout(); setUserOpen(false) }}
                   className="w-full text-left px-4 py-3 text-sm text-red-400 hover:bg-[#3a3a3a] transition flex items-center gap-2">
                   <LogOut size={15} /> Logout
                 </button>
               </>
-            ) : (
-              <button onClick={() => { setLoggedIn(true); setUserOpen(false) }}
-                className="w-full text-left px-4 py-3 text-sm text-[#F8F5F0] hover:bg-[#3a3a3a] transition flex items-center gap-2">
-                <LogIn size={15} className="text-[#2D5A3D]" /> Login
-              </button>
             )}
           </div>
         )}
