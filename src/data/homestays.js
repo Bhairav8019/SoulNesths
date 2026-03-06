@@ -1,10 +1,12 @@
+import { PLATFORM_FEE } from "./adminConfig"
+
 export const homestays = [
   {
     id: "soul-nest-main",
     name: "Soul Nest Homestay",
     location: "Malow Ali Bye Pass, Jorhat",
     startingPrice: 1000,
-    platformFee: 149,
+    platformFee: PLATFORM_FEE,
     rating: 4.9,
     reviews: 24,
     image: "/soulnest.jpeg",
