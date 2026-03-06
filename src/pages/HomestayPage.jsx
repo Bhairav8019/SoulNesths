@@ -209,7 +209,7 @@ function BookingConfirmPopup({ h, selectedRoom, checkIn, checkOut, guests, night
   )
 }
 
-export default function HomestayPage({ onLogoClick }) {
+export default function HomestayPage({ onLogoClick, loggedIn, onLogin, onLogout }) {
   const { id } = useParams()
   const navigate = useNavigate()
   const location = useLocation()
@@ -297,7 +297,7 @@ export default function HomestayPage({ onLogoClick }) {
 
   return (
     <div className="soul-bg min-h-screen bg-gradient-to-b from-[#1C1C1C] via-[#2C2C2C] to-[#1a1f1a]">
-      <Navbar onWishlist={() => {}} onLogoClick={onLogoClick} />
+      <Navbar onWishlist={() => {}} onLogoClick={onLogoClick} loggedIn={loggedIn} onLogin={onLogin} onLogout={onLogout} />
 
       {showLoginPrompt && <LoginPromptPopup onClose={() => setShowLoginPrompt(false)} />}
       {showBookingConfirm && selectedRoom && (

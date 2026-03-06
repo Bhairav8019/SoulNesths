@@ -3,13 +3,13 @@ import { useWishlist } from "../context/WishlistContext"
 import { ArrowLeft, Star, MapPin, Heart } from "lucide-react"
 import Navbar from "../components/Navbar"
 
-export default function WishlistPage({ onLogoClick }) {
+export default function WishlistPage({ onLogoClick, loggedIn, onLogin, onLogout }) {
   const navigate = useNavigate()
   const { wishlist, toggleWishlist } = useWishlist()
 
   return (
     <div className="soul-bg min-h-screen bg-gradient-to-b from-[#1C1C1C] via-[#2C2C2C] to-[#1a1f1a]">
-      <Navbar onWishlist={() => {}} onLogoClick={onLogoClick} />
+      <Navbar onWishlist={() => {}} onLogoClick={onLogoClick} loggedIn={loggedIn} onLogin={onLogin} onLogout={onLogout} />
       <div className="pt-20 max-w-3xl mx-auto px-4 pb-24">
 
         <button onClick={() => navigate("/")}
