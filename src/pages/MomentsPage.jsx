@@ -14,7 +14,7 @@ const FEATURED_MOMENTS = [
 // ────────────────────────────────────────────────────────────────────────────
 
 // Replace with your WhatsApp number (international format, no + or spaces)
-const WHATSAPP_NUMBER = "919XXXXXXXXX"
+const WHATSAPP_NUMBER = "917035464202"
 
 export default function MomentsPage({ onLogoClick, loggedIn }) {
   const navigate = useNavigate()
