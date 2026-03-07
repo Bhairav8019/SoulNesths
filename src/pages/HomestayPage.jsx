@@ -38,9 +38,9 @@ const reviews = [
 ]
 
 const nestEscapes = [
-  { icon: "🚙", title: "Car Rental", desc: "Explore Jorhat and beyond at your own pace. Self-drive and chauffeur options available.", tag: "On Request" },
-  { icon: "🍱", title: "Food Delivered", desc: "Authentic Assamese cuisine and local delicacies delivered straight to your room.", tag: "On Order" },
-  { icon: "🌿", title: "More Coming Soon", desc: "Curated local experiences, heritage tours, and more being added.", tag: "Soon" },
+  { image: "/hangout.jpg", title: "Hangout", desc: "Hangout with us & Explore Jorhat and beyond at your own pace. Self-drive and chauffeur options available.", tag: "On Request" },
+  { image: "/chefondemand.jpg", title: "Chef on Demand", desc: "Authentic Assamese cuisine and local delicacies delivered straight to your room.", tag: "On Order" },
+  { image: "/orchestraanddj.jpg", title: "Orchestra & DJ", desc: "Experience the vibe and jam to music with curated live performances and premium entertainment evenings.", tag: "On Vibe Demand" },
 ]
 
 // ── Core 72hr logic ───────────────────────────────────────────
@@ -890,12 +890,16 @@ export default function HomestayPage({ onLogoClick, loggedIn, onLogin, onLogout 
           <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
             {nestEscapes.map((e, i) => (
               <div key={i} onClick={() => setShowNestEscapes(true)}
-                className="bg-[#2a2a2a] border border-[#3a3a3a] rounded-2xl p-4 hover:border-[#8B6914] transition cursor-pointer">
-                <div className="text-3xl mb-2">{e.icon}</div>
-                <p style={{ fontFamily: "'Playfair Display', serif" }}
-                  className="text-[#F8F5F0] font-semibold text-sm mb-1">{e.title}</p>
-                <p className="text-[#9a9a9a] text-xs mb-3">{e.desc}</p>
-                <span className="text-xs bg-[#1C1C1C] text-[#8B6914] border border-[#8B6914]/30 px-2 py-0.5 rounded-full">{e.tag}</span>
+                className="bg-[#2a2a2a] border border-[#3a3a3a] rounded-2xl overflow-hidden hover:border-[#8B6914] transition cursor-pointer">
+                <div className="w-full h-40 bg-[#1C1C1C] flex items-center justify-center overflow-hidden">
+                  <img src={e.image} alt={e.title} className="w-full h-full object-cover" />
+                </div>
+                <div className="p-4">
+                  <p style={{ fontFamily: "'Playfair Display', serif" }}
+                    className="text-[#F8F5F0] font-semibold text-sm mb-1">{e.title}</p>
+                  <p className="text-[#9a9a9a] text-xs mb-3">{e.desc}</p>
+                  <span className="text-xs bg-[#1C1C1C] text-[#8B6914] border border-[#8B6914]/30 px-2 py-0.5 rounded-full">{e.tag}</span>
+                </div>
               </div>
             ))}
           </div>
