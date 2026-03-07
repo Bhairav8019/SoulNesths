@@ -51,7 +51,18 @@ const LANDMARKS = [
   },
 ]
 
-export default function MapSection({ onSelectHomestay, searchQuery, searchCoords, triggerZoom = false, searchCheckIn = null, searchCheckOut = null, searchGuests = null }) {
+export default function MapSection({
+  onSelectHomestay,
+  searchQuery,
+  searchCoords,
+  triggerZoom = false,
+  searchCheckIn = null,
+  searchCheckOut = null,
+  searchGuests = null,
+  defaultCenter = { lat: 26.7509, lng: 94.2037 }, // Soul Nest / Jorhat center
+  defaultZoom = 11, // slightly zoomed out to keep 3 direction pills visible
+  alwaysShowDirectionPills = false,
+}) {
   const mapContainer = useRef(null)
   const map = useRef(null)
   const userMarker = useRef(null)
@@ -63,8 +74,8 @@ export default function MapSection({ onSelectHomestay, searchQuery, searchCoords
     map.current = new mapboxgl.Map({
       container: mapContainer.current,
       style: "mapbox://styles/mapbox/satellite-streets-v12",
-      center: [78.9629, 20.5937],
-      zoom: 4,
+      center: [defaultCenter.lng, defaultCenter.lat],
+      zoom: defaultZoom,
     })
 
     map.current.addControl(new mapboxgl.NavigationControl(), "top-right")
@@ -123,82 +134,97 @@ export default function MapSection({ onSelectHomestay, searchQuery, searchCoords
         .addTo(map.current)
     })
 
-    // GTA-style landmark icons
-    LANDMARKS.forEach(landmark => {
-      const distKm = getDistanceKm(SOUL_NEST_LAT, SOUL_NEST_LNG, landmark.lat, landmark.lng)
-      const distLabel = distKm > 999 ? `${(distKm / 1000).toFixed(1)}k km` : `${Math.round(distKm)} km`
+    // GTA-style landmark direction pills
+    if (alwaysShowDirectionPills) {
+      LANDMARKS.forEach(landmark => {
+        const distKm = getDistanceKm(SOUL_NEST_LAT, SOUL_NEST_LNG, landmark.lat, landmark.lng)
+        const distLabel = distKm > 999 ? `${(distKm / 1000).toFixed(1)}k km` : `${Math.round(distKm)} km`
 
-      const el = document.createElement("div")
-      el.style.cssText = `
-        display: flex;
-        flex-direction: column;
-        align-items: center;
-        pointer-events: none;
-        filter: drop-shadow(0 0 8px ${landmark.glowColor});
-      `
-
-      el.innerHTML = `
-        <div style="
-          position: relative;
+        const el = document.createElement("div")
+        el.style.cssText = `
           display: flex;
           flex-direction: column;
           align-items: center;
-        ">
-          <!-- Name + distance label -->
-          <div style="
-            background: linear-gradient(135deg, rgba(10,8,6,0.95), rgba(28,20,8,0.95));
-            border: 1px solid ${landmark.color};
-            color: #F8F5F0;
-            font-family: 'Playfair Display', serif;
-            font-size: 9.5px;
-            font-weight: 700;
-            padding: 4px 10px;
-            border-radius: 20px;
-            white-space: nowrap;
-            letter-spacing: 0.06em;
-            text-transform: uppercase;
-            box-shadow: 0 2px 10px rgba(0,0,0,0.6);
-            text-shadow: 0 0 8px ${landmark.color};
-            display: flex;
-            align-items: center;
-            gap: 5px;
-          ">
-            <span>${landmark.name}</span>
-            <span style="
-              color: ${landmark.color};
-              font-size: 8.5px;
-              font-family: 'Courier New', monospace;
-              font-weight: 400;
-              opacity: 0.9;
-              letter-spacing: 0.04em;
-            ">${distLabel}</span>
-          </div>
-          <!-- Stem -->
-          <div style="
-            width: 1.5px;
-            height: 10px;
-            background: linear-gradient(to bottom, ${landmark.color}, transparent);
-          "></div>
-          <!-- Dot -->
-          <div style="
-            width: 5px;
-            height: 5px;
-            border-radius: 50%;
-            background: ${landmark.color};
-            box-shadow: 0 0 8px ${landmark.glowColor};
-          "></div>
-        </div>
-      `
+          pointer-events: none;
+          filter: drop-shadow(0 0 8px ${landmark.glowColor});
+        `
 
-      new mapboxgl.Marker({ element: el, anchor: "bottom" })
-        .setLngLat([landmark.lng, landmark.lat])
-        .addTo(map.current)
-    })
+        el.innerHTML = `
+          <div style="
+            position: relative;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+          ">
+            <div style="
+              background: linear-gradient(135deg, rgba(10,8,6,0.95), rgba(28,20,8,0.95));
+              border: 1px solid ${landmark.color};
+              color: #F8F5F0;
+              font-family: 'Playfair Display', serif;
+              font-size: 9.5px;
+              font-weight: 700;
+              padding: 4px 10px;
+              border-radius: 20px;
+              white-space: nowrap;
+              letter-spacing: 0.06em;
+              text-transform: uppercase;
+              box-shadow: 0 2px 10px rgba(0,0,0,0.6);
+              text-shadow: 0 0 8px ${landmark.color};
+              display: flex;
+              align-items: center;
+              gap: 5px;
+            ">
+              <span>${landmark.name}</span>
+              <span style="
+                color: ${landmark.color};
+                font-size: 8.5px;
+                font-family: 'Courier New', monospace;
+                font-weight: 400;
+                opacity: 0.9;
+                letter-spacing: 0.04em;
+              ">${distLabel}</span>
+            </div>
+            <div style="
+              width: 1.5px;
+              height: 10px;
+              background: linear-gradient(to bottom, ${landmark.color}, transparent);
+            "></div>
+            <div style="
+              width: 5px;
+              height: 5px;
+              border-radius: 50%;
+              background: ${landmark.color};
+              box-shadow: 0 0 8px ${landmark.glowColor};
+            "></div>
+          </div>
+        `
+
+        new mapboxgl.Marker({ element: el, anchor: "bottom" })
+          .setLngLat([landmark.lng, landmark.lat])
+          .addTo(map.current)
+      })
+    }
+
+    return () => {
+      if (map.current) {
+        map.current.remove()
+        map.current = null
+      }
+    }
   }, [])
 
-  // Fly to search result
+  // Fly to search result only when user actually searched
   useEffect(() => {
-    if (!searchCoords || !map.current) return
+    if (!map.current) return
+    const hasSearch = Boolean(searchCoords && searchQuery?.trim())
+
+    if (!hasSearch) {
+      if (searchMarker.current) {
+        searchMarker.current.remove()
+        searchMarker.current = null
+      }
+      return
+    }
 
     map.current.flyTo({
       center: [searchCoords.lng, searchCoords.lat],
@@ -210,7 +236,7 @@ export default function MapSection({ onSelectHomestay, searchQuery, searchCoords
     if (searchMarker.current) searchMarker.current.remove()
 
     const matched = homestays.find(h =>
-      h.name.toLowerCase().includes(searchQuery?.toLowerCase())
+      h.name.toLowerCase().includes(searchQuery.toLowerCase())
     )
 
     if (!matched) {
@@ -227,17 +253,17 @@ export default function MapSection({ onSelectHomestay, searchQuery, searchCoords
         .setLngLat([searchCoords.lng, searchCoords.lat])
         .addTo(map.current)
     }
-  }, [searchCoords])
+  }, [searchCoords, searchQuery])
 
-  // Zoom animation from India → Jorhat on initial load
+  // Zoom animation to homepage default center
   useEffect(() => {
     if (!triggerZoom || !map.current) return
 
     const performZoom = () => {
       if (map.current) {
         map.current.flyTo({
-          center: [94.2037, 26.7509],
-          zoom: 11,
+          center: [defaultCenter.lng, defaultCenter.lat],
+          zoom: defaultZoom,
           duration: 3000,
           easing: (t) => t * (2 - t),
         })
@@ -249,7 +275,7 @@ export default function MapSection({ onSelectHomestay, searchQuery, searchCoords
     } else {
       map.current.once("load", performZoom)
     }
-  }, [triggerZoom])
+  }, [triggerZoom, defaultCenter, defaultZoom])
 
   // User location + distance line
   const enableLocation = () => {
