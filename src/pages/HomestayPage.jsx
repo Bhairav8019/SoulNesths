@@ -51,9 +51,11 @@ function hoursUntilCheckIn(checkInStr) {
 }
 
 // ── Shared summary rows used in both popups ───────────────────
-function SummaryRows({ h, selectedRoom, checkIn, checkOut, guests, nights, showFee }) {
-  const roomPrice = selectedRoom.discountPrice ?? selectedRoom.regularPrice
-  const subtotal = roomPrice * nights
+function SummaryRows({ h, selectedRooms, checkIn, checkOut, guests, nights, showFee }) {
+  const roomsSubtotal = selectedRooms.reduce((sum, r) => {
+    const p = r.discountPrice ?? r.regularPrice
+    return sum + p * nights
+  }, 0)
   return (
     <div className="bg-[#2a2a2a] border border-[#3a3a3a] rounded-2xl p-4 flex flex-col gap-2.5">
       <div className="flex justify-between items-start">
@@ -61,10 +63,13 @@ function SummaryRows({ h, selectedRoom, checkIn, checkOut, guests, nights, showF
         <span style={{ fontFamily: "'Playfair Display', serif" }}
           className="text-[#F8F5F0] text-xs font-semibold text-right max-w-[55%]">{h.name}</span>
       </div>
-      <div className="flex justify-between">
-        <span className="text-[#9a9a9a] text-xs">Room</span>
-        <span className="text-[#F8F5F0] text-xs font-medium">{selectedRoom.name}</span>
-      </div>
+      {/* Rooms — one line each */}
+      {selectedRooms.map((r, i) => (
+        <div key={r.id} className="flex justify-between">
+          <span className="text-[#9a9a9a] text-xs">{i === 0 ? "Room" : `Room ${i + 1}`}</span>
+          <span className="text-[#F8F5F0] text-xs font-medium">{r.name}</span>
+        </div>
+      ))}
       <div className="flex justify-between">
         <span className="text-[#9a9a9a] text-xs">Check-in</span>
         <span className="text-[#F8F5F0] text-xs">
@@ -86,10 +91,16 @@ function SummaryRows({ h, selectedRoom, checkIn, checkOut, guests, nights, showF
         <span className="text-[#F8F5F0] text-xs">{nights} {nights === 1 ? "Night" : "Nights"}</span>
       </div>
       <div className="border-t border-[#3a3a3a] pt-2 mt-1 flex flex-col gap-1.5">
-        <div className="flex justify-between text-xs">
-          <span className="text-[#9a9a9a]">₹{roomPrice} × {nights} nights</span>
-          <span className="text-[#F8F5F0]">₹{subtotal}</span>
-        </div>
+        {/* Per-room price lines */}
+        {selectedRooms.map(r => {
+          const p = r.discountPrice ?? r.regularPrice
+          return (
+            <div key={r.id} className="flex justify-between text-xs">
+              <span className="text-[#9a9a9a]">{r.name} · ₹{p} × {nights}n</span>
+              <span className="text-[#F8F5F0]">₹{p * nights}</span>
+            </div>
+          )
+        })}
         {showFee ? (
           <>
             <div className="flex justify-between text-xs">
@@ -98,7 +109,7 @@ function SummaryRows({ h, selectedRoom, checkIn, checkOut, guests, nights, showF
             </div>
             <div className="flex justify-between text-xs italic">
               <span className="text-[#9a9a9a]">Pay at homestay</span>
-              <span className="text-[#9a9a9a]">₹{Math.max(0, subtotal - h.platformFee)}</span>
+              <span className="text-[#9a9a9a]">₹{Math.max(0, roomsSubtotal - h.platformFee)}</span>
             </div>
             <div className="border-t border-[#8B6914]/30 pt-2 flex justify-between items-center">
               <span className="text-[#F8F5F0] text-sm font-semibold">Pay Now</span>
@@ -110,7 +121,7 @@ function SummaryRows({ h, selectedRoom, checkIn, checkOut, guests, nights, showF
           <>
             <div className="flex justify-between text-xs italic">
               <span className="text-[#9a9a9a]">Pay at homestay on arrival</span>
-              <span className="text-[#9a9a9a]">₹{subtotal}</span>
+              <span className="text-[#9a9a9a]">₹{roomsSubtotal}</span>
             </div>
             <div className="border-t border-[#2D5A3D]/30 pt-2 flex justify-between items-center">
               <span className="text-[#F8F5F0] text-sm font-semibold">Pay Now</span>
@@ -125,7 +136,7 @@ function SummaryRows({ h, selectedRoom, checkIn, checkOut, guests, nights, showF
 }
 
 // ── POPUP A — Platform fee + Razorpay (booking > 72hrs before check-in) ──
-function BookingConfirmPopupFee({ h, selectedRoom, checkIn, checkOut, guests, nights, onClose, onPay }) {
+function BookingConfirmPopupFee({ h, selectedRooms, checkIn, checkOut, guests, nights, onClose, onPay }) {
   const [seconds, setSeconds] = useState(600)
   useEffect(() => {
     const t = setInterval(() => {
@@ -156,7 +167,7 @@ function BookingConfirmPopupFee({ h, selectedRoom, checkIn, checkOut, guests, ni
           Summary expires in <span className={`font-semibold ${timerColor}`}>{mins}:{secs}</span>. Complete payment before the timer runs out.
         </p>
 
-        <SummaryRows h={h} selectedRoom={selectedRoom} checkIn={checkIn} checkOut={checkOut}
+        <SummaryRows h={h} selectedRooms={selectedRooms} checkIn={checkIn} checkOut={checkOut}
           guests={guests} nights={nights} showFee={true} />
 
         <div className="mt-3 bg-[#2D5A3D]/10 border border-[#2D5A3D]/30 rounded-xl px-3 py-2.5">
@@ -184,9 +195,8 @@ function BookingConfirmPopupFee({ h, selectedRoom, checkIn, checkOut, guests, ni
 }
 
 // ── POPUP B — Direct booking (within 72hrs of check-in) ──────
-function BookingConfirmPopupDirect({ h, selectedRoom, checkIn, checkOut, guests, nights, onClose, onConfirm }) {
-  const roomPrice = selectedRoom.discountPrice ?? selectedRoom.regularPrice
-  const subtotal = roomPrice * nights
+function BookingConfirmPopupDirect({ h, selectedRooms, checkIn, checkOut, guests, nights, onClose, onConfirm }) {
+  const roomsSubtotal = selectedRooms.reduce((sum, r) => sum + (r.discountPrice ?? r.regularPrice) * nights, 0)
   return (
     <div className="fixed inset-0 z-50 flex items-end md:items-center justify-center px-4 pb-4 md:pb-0"
       style={{ background: "rgba(0,0,0,0.75)", backdropFilter: "blur(6px)" }}>
@@ -209,13 +219,13 @@ function BookingConfirmPopupDirect({ h, selectedRoom, checkIn, checkOut, guests,
           </p>
         </div>
 
-        <SummaryRows h={h} selectedRoom={selectedRoom} checkIn={checkIn} checkOut={checkOut}
+        <SummaryRows h={h} selectedRooms={selectedRooms} checkIn={checkIn} checkOut={checkOut}
           guests={guests} nights={nights} showFee={false} />
 
         <div className="mt-3 bg-[#8B6914]/10 border border-[#8B6914]/30 rounded-xl px-3 py-2.5">
           <p className="text-[#8B6914] text-xs font-medium">💰 Pay at homestay on arrival</p>
           <p className="text-[#9a9a9a] text-xs mt-0.5">
-            Full amount of ₹{subtotal} to be paid in cash or UPI directly to the homestay on check-in.
+            Full amount of ₹{roomsSubtotal} to be paid in cash or UPI directly to the homestay on check-in.
           </p>
         </div>
 
@@ -299,12 +309,35 @@ export default function HomestayPage({ onLogoClick, loggedIn, onLogin, onLogout 
   const [guests, setGuests] = useState(searchData.guests ? parseInt(searchData.guests) : 1)
 
   const hasSearchData = !!(checkIn || checkOut || (guests && guests > 1))
-  const [selectedRoom, setSelectedRoom] = useState(null)
+  const [selectedRooms, setSelectedRooms] = useState([])   // array of room objects
   const [showLoginPrompt, setShowLoginPrompt] = useState(false)
   const [showFeePopup, setShowFeePopup] = useState(false)
   const [showDirectPopup, setShowDirectPopup] = useState(false)
   const [showNestEscapes, setShowNestEscapes] = useState(false)
   const { toggleWishlist, isWishlisted } = useWishlist()
+
+  // ── Multi-room helpers ───────────────────────────────────────
+  const primaryRoom = selectedRooms[0] || null
+  const combinedMaxGuests = selectedRooms.reduce((sum, r) => sum + r.maxGuests, 0)
+  // Rooms not yet selected (available to add)
+  const availableToAdd = h ? h.rooms.filter(r => !selectedRooms.find(s => s.id === r.id)) : []
+  // Total rooms capacity cap from property
+  const atPropertyCap = h ? selectedRooms.reduce((sum, r) => sum + r.maxGuests, 0) >= h.totalMaxGuests : false
+
+  const toggleRoom = (room) => {
+    setSelectedRooms(prev => {
+      const exists = prev.find(r => r.id === room.id)
+      if (exists) {
+        // Remove room — also clamp guests to new combined cap
+        const next = prev.filter(r => r.id !== room.id)
+        const newCap = next.reduce((sum, r) => sum + r.maxGuests, 0)
+        setGuests(g => Math.min(g, Math.max(1, newCap)))
+        return next
+      } else {
+        return [...prev, room]
+      }
+    })
+  }
 
   const getTodayDate = () => new Date().toISOString().split("T")[0]
 
@@ -333,13 +366,13 @@ export default function HomestayPage({ onLogoClick, loggedIn, onLogin, onLogout 
     ? Math.max(1, Math.round((new Date(checkOut) - new Date(checkIn)) / (1000 * 60 * 60 * 24)))
     : 1
 
-  const roomPrice = selectedRoom ? (selectedRoom.discountPrice ?? selectedRoom.regularPrice) : 0
-  const subtotal = roomPrice * nights
+  const subtotal = selectedRooms.reduce((sum, r) => {
+    return sum + (r.discountPrice ?? r.regularPrice) * nights
+  }, 0)
 
   // ── 72hr gate ────────────────────────────────────────────────
   const hrs = hoursUntilCheckIn(checkIn)
-  const isDirectMode = checkIn && hrs <= 72   // within 72hrs → no payment
-  // no checkIn set → always show fee mode button
+  const isDirectMode = checkIn && hrs <= 72
 
   const handleReserve = () => {
     if (!loggedIn) { setShowLoginPrompt(true); return }
@@ -362,13 +395,13 @@ export default function HomestayPage({ onLogoClick, loggedIn, onLogin, onLogout 
       <Navbar onLogoClick={onLogoClick} loggedIn={loggedIn} onLogin={onLogin} onLogout={onLogout} />
 
       {showLoginPrompt && <LoginPromptPopup onClose={() => setShowLoginPrompt(false)} />}
-      {showFeePopup && selectedRoom && (
-        <BookingConfirmPopupFee h={h} selectedRoom={selectedRoom}
+      {showFeePopup && selectedRooms.length > 0 && (
+        <BookingConfirmPopupFee h={h} selectedRooms={selectedRooms}
           checkIn={checkIn} checkOut={checkOut} guests={guests} nights={nights}
           onClose={() => setShowFeePopup(false)} onPay={handlePay} />
       )}
-      {showDirectPopup && selectedRoom && (
-        <BookingConfirmPopupDirect h={h} selectedRoom={selectedRoom}
+      {showDirectPopup && selectedRooms.length > 0 && (
+        <BookingConfirmPopupDirect h={h} selectedRooms={selectedRooms}
           checkIn={checkIn} checkOut={checkOut} guests={guests} nights={nights}
           onClose={() => setShowDirectPopup(false)} onConfirm={handleDirectConfirm} />
       )}
@@ -515,52 +548,123 @@ export default function HomestayPage({ onLogoClick, loggedIn, onLogin, onLogout 
         {/* Room Selection */}
         <div className="mb-6">
           <h2 style={{ fontFamily: "'Playfair Display', serif" }}
-            className="text-[#F8F5F0] text-lg font-semibold mb-3">Choose Your Room</h2>
+            className="text-[#F8F5F0] text-lg font-semibold mb-1">Choose Your Room</h2>
+          <p className="text-[#9a9a9a] text-xs mb-3">Tap to select · Tap again to deselect · Add multiple rooms for larger groups</p>
           <div className="flex flex-col gap-3">
-            {h.rooms.map(room => (
-              <button key={room.id} onClick={() => {
-                setSelectedRoom(room)
-                if (guests > room.maxGuests) setGuests(room.maxGuests)
-              }}
-                className={`w-full text-left bg-[#2a2a2a] rounded-2xl p-4 border-2 transition ${selectedRoom?.id === room.id ? "border-[#8B6914]" : "border-[#3a3a3a] hover:border-[#2D5A3D]"}`}>
-                <div className="flex items-center justify-between">
-                  <div>
-                    <p style={{ fontFamily: "'Playfair Display', serif" }}
-                      className="text-[#F8F5F0] font-semibold text-sm">{room.name}</p>
-                    <p className="text-[#9a9a9a] text-xs mt-0.5">{room.description}</p>
-                    {room.id === "premium-1bhk" && (
-                      <span className="text-xs text-[#8B6914] mt-1 inline-block">✦ Includes private balcony</span>
-                    )}
+            {h.rooms.map(room => {
+              const isSelected = !!selectedRooms.find(r => r.id === room.id)
+              const isPrimary = selectedRooms[0]?.id === room.id
+              return (
+                <button key={room.id} onClick={() => toggleRoom(room)}
+                  className={`w-full text-left bg-[#2a2a2a] rounded-2xl p-4 border-2 transition ${
+                    isSelected ? "border-[#8B6914]" : "border-[#3a3a3a] hover:border-[#2D5A3D]"
+                  }`}>
+                  <div className="flex items-center justify-between">
+                    <div>
+                      <div className="flex items-center gap-2 flex-wrap">
+                        <p style={{ fontFamily: "'Playfair Display', serif" }}
+                          className="text-[#F8F5F0] font-semibold text-sm">{room.name}</p>
+                        <span className="text-[#9a9a9a] text-xs flex items-center gap-1">
+                          <Users size={10} /> Max {room.maxGuests}
+                        </span>
+                      </div>
+                      <p className="text-[#9a9a9a] text-xs mt-0.5">{room.description}</p>
+                      {room.id === "premium-1bhk" && (
+                        <span className="text-xs text-[#8B6914] mt-1 inline-block">✦ Includes private balcony</span>
+                      )}
+                    </div>
+                    <div className="text-right flex-shrink-0 ml-3">
+                      {room.discount ? (
+                        <>
+                          <p className="text-[#9a9a9a] text-xs line-through">₹{room.regularPrice}</p>
+                          <p className="text-[#2D5A3D] font-bold text-base">₹{room.discountPrice}</p>
+                          <span className="text-xs bg-[#2D5A3D] text-white px-2 py-0.5 rounded-full">30% off</span>
+                        </>
+                      ) : (
+                        <p className="text-[#F8F5F0] font-bold text-base">₹{room.regularPrice}</p>
+                      )}
+                      <p className="text-[#9a9a9a] text-xs">/ night</p>
+                    </div>
                   </div>
-                  <div className="text-right flex-shrink-0 ml-3">
-                    {room.discount ? (
-                      <>
-                        <p className="text-[#9a9a9a] text-xs line-through">₹{room.regularPrice}</p>
-                        <p className="text-[#2D5A3D] font-bold text-base">₹{room.discountPrice}</p>
-                        <span className="text-xs bg-[#2D5A3D] text-white px-2 py-0.5 rounded-full">30% off</span>
-                      </>
-                    ) : (
-                      <p className="text-[#F8F5F0] font-bold text-base">₹{room.regularPrice}</p>
-                    )}
-                    <p className="text-[#9a9a9a] text-xs">/ night</p>
-                  </div>
-                </div>
-                {selectedRoom?.id === room.id && (
-                  <div className="mt-2 flex items-center gap-1">
-                    <div className="w-2 h-2 rounded-full bg-[#8B6914]" />
-                    <span className="text-[#8B6914] text-xs font-medium">Selected</span>
-                  </div>
-                )}
-              </button>
-            ))}
+                  {isSelected && (
+                    <div className="mt-2 flex items-center gap-1">
+                      <div className="w-2 h-2 rounded-full bg-[#8B6914]" />
+                      <span className="text-[#8B6914] text-xs font-medium">
+                        {isPrimary ? "Primary Room" : "Added"}
+                      </span>
+                    </div>
+                  )}
+                </button>
+              )
+            })}
           </div>
         </div>
 
         {/* ── BOOKING CARD ── */}
-        {selectedRoom && (
+        {selectedRooms.length > 0 && (
           <div className="bg-[#2a2a2a] rounded-3xl border border-[#3a3a3a] p-5 shadow-xl mb-8">
-            <p style={{ fontFamily: "'Playfair Display', serif" }}
-              className="text-[#F8F5F0] text-base font-semibold mb-4">{selectedRoom.name}</p>
+
+            {/* ── Selected rooms summary strip ── */}
+            <div className="mb-4">
+              <div className="flex items-center justify-between mb-2">
+                <p style={{ fontFamily: "'Playfair Display', serif" }}
+                  className="text-[#F8F5F0] text-base font-semibold">
+                  {selectedRooms.length === 1 ? selectedRooms[0].name : `${selectedRooms.length} Rooms Selected`}
+                </p>
+                <span className="text-[#8B6914] text-xs border border-[#8B6914]/40 px-2 py-0.5 rounded-full">
+                  Max {combinedMaxGuests} guests
+                </span>
+              </div>
+              {selectedRooms.length > 1 && (
+                <div className="flex flex-col gap-1 bg-[#1C1C1C] rounded-2xl px-3 py-2.5 border border-[#3a3a3a]">
+                  {selectedRooms.map((r, i) => {
+                    const p = r.discountPrice ?? r.regularPrice
+                    return (
+                      <div key={r.id} className="flex justify-between items-center">
+                        <span className="text-[#9a9a9a] text-xs">{i === 0 ? "📌 " : "➕ "}{r.name}</span>
+                        <div className="flex items-center gap-2">
+                          <span className="text-[#F8F5F0] text-xs">₹{p}/night</span>
+                          <button onClick={() => toggleRoom(r)}
+                            className="text-[#9a9a9a] hover:text-red-400 transition text-xs px-1">✕</button>
+                        </div>
+                      </div>
+                    )
+                  })}
+                </div>
+              )}
+            </div>
+
+            {/* ── Add another room prompt (if rooms still available and not at property cap) ── */}
+            {availableToAdd.length > 0 && !atPropertyCap && (
+              <div className="bg-[#1C1C1C] border border-dashed border-[#3a3a3a] rounded-2xl px-3 py-3 mb-4">
+                <p className="text-[#8B6914] text-xs font-medium mb-2 flex items-center gap-1">
+                  <Users size={11} /> Need more rooms?
+                </p>
+                <div className="flex flex-wrap gap-2">
+                  {availableToAdd.map(r => {
+                    const p = r.discountPrice ?? r.regularPrice
+                    return (
+                      <button key={r.id} onClick={() => toggleRoom(r)}
+                        className="flex items-center gap-1.5 bg-[#2a2a2a] border border-[#3a3a3a] hover:border-[#8B6914] text-[#F8F5F0] text-xs px-3 py-1.5 rounded-full transition">
+                        <span className="text-[#8B6914]">+</span>
+                        {r.name}
+                        <span className="text-[#9a9a9a]">·</span>
+                        <span className="text-[#9a9a9a]">₹{p}</span>
+                      </button>
+                    )
+                  })}
+                </div>
+                <p className="text-[#9a9a9a] text-xs mt-2 italic">
+                  ✦ Property can host up to {h.totalMaxGuests} guests total
+                </p>
+              </div>
+            )}
+            {atPropertyCap && (
+              <div className="bg-[#2D5A3D]/10 border border-[#2D5A3D]/30 rounded-2xl px-3 py-2.5 mb-4">
+                <p className="text-[#2D5A3D] text-xs font-semibold">✓ Full property booked</p>
+                <p className="text-[#9a9a9a] text-xs mt-0.5">You've selected rooms up to the property's max capacity of {h.totalMaxGuests} guests.</p>
+              </div>
+            )}
 
             {/* Dates */}
             <div className="grid grid-cols-2 gap-3 mb-4">
@@ -584,7 +688,7 @@ export default function HomestayPage({ onLogoClick, loggedIn, onLogin, onLogout 
               </div>
             </div>
 
-            {/* Guests */}
+            {/* Guests — capped by combinedMaxGuests */}
             <div className="bg-[#1C1C1C] rounded-2xl px-4 py-3 border border-[#3a3a3a] mb-5">
               <p className="text-[#8B6914] text-xs font-medium mb-2 flex items-center gap-1">
                 <Users size={11} /> Guests
@@ -593,22 +697,32 @@ export default function HomestayPage({ onLogoClick, loggedIn, onLogin, onLogout 
                 <button onClick={() => setGuests(g => Math.max(1, g - 1))}
                   className="w-8 h-8 rounded-full bg-[#2a2a2a] border border-[#3a3a3a] text-[#F8F5F0] flex items-center justify-center hover:border-[#8B6914] transition text-lg">−</button>
                 <span className="text-[#F8F5F0] font-semibold w-6 text-center">{guests}</span>
-                <button onClick={() => setGuests(g => Math.min(selectedRoom.maxGuests, g + 1))}
+                <button onClick={() => setGuests(g => Math.min(combinedMaxGuests, g + 1))}
                   className="w-8 h-8 rounded-full bg-[#2a2a2a] border border-[#3a3a3a] text-[#F8F5F0] flex items-center justify-center hover:border-[#8B6914] transition text-lg">+</button>
                 <span className="text-[#9a9a9a] text-sm">{guests === 1 ? "1 guest" : `${guests} guests`}</span>
               </div>
               <p className="text-[#9a9a9a] text-xs mt-2 italic">
-                ✦ Max {selectedRoom.maxGuests} guests for {selectedRoom.name}
-                {checkIn && checkOut ? ` · ${nights} ${nights === 1 ? "night" : "nights"} selected` : ""}
+                ✦ Max {combinedMaxGuests} guests across {selectedRooms.length} {selectedRooms.length === 1 ? "room" : "rooms"}
+                {checkIn && checkOut ? ` · ${nights} ${nights === 1 ? "night" : "nights"}` : ""}
               </p>
+              {guests > combinedMaxGuests - 2 && guests === combinedMaxGuests && availableToAdd.length > 0 && !atPropertyCap && (
+                <p className="text-[#8B6914] text-xs mt-1 font-medium">
+                  ⚠ At room capacity — add another room above for more guests
+                </p>
+              )}
             </div>
 
-            {/* Price breakdown — changes by mode */}
+            {/* Price breakdown */}
             <div className="border-t border-[#3a3a3a] pt-4 mb-5 flex flex-col gap-2">
-              <div className="flex justify-between text-sm">
-                <span className="text-[#9a9a9a]">₹{roomPrice} × {nights} {nights === 1 ? "night" : "nights"}</span>
-                <span className="text-[#F8F5F0]">₹{subtotal}</span>
-              </div>
+              {selectedRooms.map(r => {
+                const p = r.discountPrice ?? r.regularPrice
+                return (
+                  <div key={r.id} className="flex justify-between text-sm">
+                    <span className="text-[#9a9a9a]">{r.name} · ₹{p} × {nights}n</span>
+                    <span className="text-[#F8F5F0]">₹{p * nights}</span>
+                  </div>
+                )
+              })}
               {isDirectMode ? (
                 <>
                   <div className="flex justify-between text-sm text-[#9a9a9a] italic">
