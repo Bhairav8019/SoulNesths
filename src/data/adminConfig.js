@@ -5,8 +5,11 @@
 // ═══════════════════════════════════════════════════════════════
 
 // ── PLATFORM FEE ─────────────────────────────────────────────
-// This fee is charged online via Razorpay at booking.
-// Remaining balance is paid at the homestay on check-in.
+// Base fee per room charged online via Razorpay at booking.
+// Multi-room bookings: total fee = PLATFORM_FEE × number of rooms selected.
+// 72hr last-minute waiver applies ONLY for single-room bookings.
+// Multi-room bookings within 72hrs are still charged the scaled fee.
+// Remaining balance is always paid at the homestay on check-in.
 export const PLATFORM_FEE = 149
 
 // ── ACTIVE OFFERS ────────────────────────────────────────────

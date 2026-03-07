@@ -51,11 +51,12 @@ function hoursUntilCheckIn(checkInStr) {
 }
 
 // ── Shared summary rows used in both popups ───────────────────
-function SummaryRows({ h, selectedRooms, checkIn, checkOut, guests, nights, showFee }) {
+function SummaryRows({ h, selectedRooms, checkIn, checkOut, guests, nights, showFee, scaledFee }) {
   const roomsSubtotal = selectedRooms.reduce((sum, r) => {
     const p = r.discountPrice ?? r.regularPrice
     return sum + p * nights
   }, 0)
+  const feeToShow = scaledFee ?? h.platformFee
   return (
     <div className="bg-[#2a2a2a] border border-[#3a3a3a] rounded-2xl p-4 flex flex-col gap-2.5">
       <div className="flex justify-between items-start">
@@ -104,17 +105,19 @@ function SummaryRows({ h, selectedRooms, checkIn, checkOut, guests, nights, show
         {showFee ? (
           <>
             <div className="flex justify-between text-xs">
-              <span className="text-[#9a9a9a]">Platform fee</span>
-              <span className="text-[#F8F5F0]">₹{h.platformFee}</span>
+              <span className="text-[#9a9a9a]">
+                Platform fee {selectedRooms.length > 1 ? `(₹${h.platformFee} × ${selectedRooms.length} rooms)` : ""}
+              </span>
+              <span className="text-[#F8F5F0]">₹{feeToShow}</span>
             </div>
             <div className="flex justify-between text-xs italic">
               <span className="text-[#9a9a9a]">Pay at homestay</span>
-              <span className="text-[#9a9a9a]">₹{Math.max(0, roomsSubtotal - h.platformFee)}</span>
+              <span className="text-[#9a9a9a]">₹{Math.max(0, roomsSubtotal - feeToShow)}</span>
             </div>
             <div className="border-t border-[#8B6914]/30 pt-2 flex justify-between items-center">
               <span className="text-[#F8F5F0] text-sm font-semibold">Pay Now</span>
               <span style={{ fontFamily: "'Playfair Display', serif" }}
-                className="text-[#8B6914] text-xl font-bold">₹{h.platformFee}</span>
+                className="text-[#8B6914] text-xl font-bold">₹{feeToShow}</span>
             </div>
           </>
         ) : (
@@ -136,7 +139,7 @@ function SummaryRows({ h, selectedRooms, checkIn, checkOut, guests, nights, show
 }
 
 // ── POPUP A — Platform fee + Razorpay (booking > 72hrs before check-in) ──
-function BookingConfirmPopupFee({ h, selectedRooms, checkIn, checkOut, guests, nights, onClose, onPay }) {
+function BookingConfirmPopupFee({ h, selectedRooms, scaledFee, checkIn, checkOut, guests, nights, onClose, onPay }) {
   const [seconds, setSeconds] = useState(600)
   useEffect(() => {
     const t = setInterval(() => {
@@ -167,7 +170,7 @@ function BookingConfirmPopupFee({ h, selectedRooms, checkIn, checkOut, guests, n
           Summary expires in <span className={`font-semibold ${timerColor}`}>{mins}:{secs}</span>. Complete payment before the timer runs out.
         </p>
 
-        <SummaryRows h={h} selectedRooms={selectedRooms} checkIn={checkIn} checkOut={checkOut}
+        <SummaryRows h={h} selectedRooms={selectedRooms} scaledFee={scaledFee} checkIn={checkIn} checkOut={checkOut}
           guests={guests} nights={nights} showFee={true} />
 
         <div className="mt-3 bg-[#2D5A3D]/10 border border-[#2D5A3D]/30 rounded-xl px-3 py-2.5">
@@ -183,7 +186,7 @@ function BookingConfirmPopupFee({ h, selectedRooms, checkIn, checkOut, guests, n
         <button onClick={onPay}
           className="w-full bg-[#2D5A3D] text-white py-4 rounded-2xl font-semibold text-sm hover:bg-[#8B6914] transition shadow-lg"
           style={{ fontFamily: "'Playfair Display', serif" }}>
-          Proceed to Payment — ₹{h.platformFee}
+          Proceed to Payment — ₹{scaledFee}
         </button>
         <p className="text-center text-[#9a9a9a] text-xs mt-2">🔒 Secured by Razorpay</p>
         <p className="text-center text-[#8B6914] text-xs mt-1 italic">
@@ -370,9 +373,15 @@ export default function HomestayPage({ onLogoClick, loggedIn, onLogin, onLogout 
     return sum + (r.discountPrice ?? r.regularPrice) * nights
   }, 0)
 
+  // ── Platform fee scales with room count ──────────────────────
+  const scaledFee = h.platformFee * selectedRooms.length   // ₹149 × rooms
+
   // ── 72hr gate ────────────────────────────────────────────────
+  // Direct (no-fee) mode: ONLY when check-in ≤ 72hrs AND exactly 1 room
+  // Multi-room within 72hrs → still requires scaled fee payment
   const hrs = hoursUntilCheckIn(checkIn)
-  const isDirectMode = checkIn && hrs <= 72
+  const isWithin72 = checkIn && hrs <= 72
+  const isDirectMode = isWithin72 && selectedRooms.length === 1
 
   const handleReserve = () => {
     if (!loggedIn) { setShowLoginPrompt(true); return }
@@ -396,7 +405,7 @@ export default function HomestayPage({ onLogoClick, loggedIn, onLogin, onLogout 
 
       {showLoginPrompt && <LoginPromptPopup onClose={() => setShowLoginPrompt(false)} />}
       {showFeePopup && selectedRooms.length > 0 && (
-        <BookingConfirmPopupFee h={h} selectedRooms={selectedRooms}
+        <BookingConfirmPopupFee h={h} selectedRooms={selectedRooms} scaledFee={scaledFee}
           checkIn={checkIn} checkOut={checkOut} guests={guests} nights={nights}
           onClose={() => setShowFeePopup(false)} onPay={handlePay} />
       )}
@@ -724,6 +733,7 @@ export default function HomestayPage({ onLogoClick, loggedIn, onLogin, onLogout 
                 )
               })}
               {isDirectMode ? (
+                // Single room + within 72hrs → no fee
                 <>
                   <div className="flex justify-between text-sm text-[#9a9a9a] italic">
                     <span>Pay at homestay on arrival</span>
@@ -736,26 +746,30 @@ export default function HomestayPage({ onLogoClick, loggedIn, onLogin, onLogout 
                   </div>
                 </>
               ) : (
+                // Fee mode — scaled by room count
                 <>
                   <div className="flex justify-between text-sm">
-                    <span className="text-[#9a9a9a]">Platform fee</span>
-                    <span className="text-[#F8F5F0]">₹{h.platformFee}</span>
+                    <span className="text-[#9a9a9a]">
+                      Platform fee{selectedRooms.length > 1 ? ` (₹${h.platformFee} × ${selectedRooms.length})` : ""}
+                    </span>
+                    <span className="text-[#F8F5F0]">₹{scaledFee}</span>
                   </div>
                   <div className="flex justify-between text-sm text-[#9a9a9a] italic">
                     <span>Remaining (pay at homestay)</span>
-                    <span>₹{Math.max(0, subtotal - h.platformFee)}</span>
+                    <span>₹{Math.max(0, subtotal - scaledFee)}</span>
                   </div>
                   <div className="border-t border-[#3a3a3a] pt-2 flex justify-between font-semibold">
                     <span className="text-[#F8F5F0]">Pay now</span>
                     <span style={{ fontFamily: "'Playfair Display', serif" }}
-                      className="text-[#8B6914] text-lg">₹{h.platformFee}</span>
+                      className="text-[#8B6914] text-lg">₹{scaledFee}</span>
                   </div>
                 </>
               )}
             </div>
 
-            {/* ── THE BUTTON — two faces ── */}
+            {/* ── THE BUTTON — three states ── */}
             {isDirectMode ? (
+              // State 1: single room + within 72hrs → free booking
               <>
                 <div className="bg-[#1a2a1a] border border-[#2D5A3D]/40 rounded-xl px-3 py-2 mb-3">
                   <p className="text-[#2D5A3D] text-xs font-semibold">⚡ Last-minute booking</p>
@@ -773,12 +787,31 @@ export default function HomestayPage({ onLogoClick, loggedIn, onLogin, onLogout 
                   Full amount ₹{subtotal} paid directly at homestay on check-in
                 </p>
               </>
+            ) : isWithin72 && selectedRooms.length > 1 ? (
+              // State 2: multiple rooms + within 72hrs → fee still required
+              <>
+                <div className="bg-[#2a1a0a] border border-[#8B6914]/40 rounded-xl px-3 py-2 mb-3">
+                  <p className="text-[#8B6914] text-xs font-semibold">⚡ Last-minute · Multi-room booking</p>
+                  <p className="text-[#9a9a9a] text-xs mt-0.5">
+                    72hr waiver applies to single rooms only. Booking {selectedRooms.length} rooms requires a platform fee of ₹{scaledFee} (₹{h.platformFee} × {selectedRooms.length} rooms).
+                  </p>
+                </div>
+                <button onClick={handleReserve}
+                  className="w-full bg-[#8B6914] text-white py-4 rounded-2xl font-semibold text-base hover:bg-[#a07820] transition shadow-lg"
+                  style={{ fontFamily: "'Playfair Display', serif" }}>
+                  Reserve Now — Pay ₹{scaledFee} to Confirm
+                </button>
+                <p className="text-center text-[#9a9a9a] text-xs mt-3">
+                  Full refund if cancelled 48 hrs before check-in · Remaining amount paid at homestay
+                </p>
+              </>
             ) : (
+              // State 3: standard booking (> 72hrs, any number of rooms)
               <>
                 <button onClick={handleReserve}
                   className="w-full bg-[#2D5A3D] text-white py-4 rounded-2xl font-semibold text-base hover:bg-[#8B6914] transition shadow-lg"
                   style={{ fontFamily: "'Playfair Display', serif" }}>
-                  Reserve Now — Pay ₹{h.platformFee} to Confirm
+                  Reserve Now — Pay ₹{scaledFee} to Confirm
                 </button>
                 <p className="text-center text-[#9a9a9a] text-xs mt-3">
                   Full refund if cancelled 48 hrs before check-in · Remaining amount paid at homestay
