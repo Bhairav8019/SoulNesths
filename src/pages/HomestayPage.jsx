@@ -1,11 +1,11 @@
-import { useState, useEffect, useRef } from "react"
+import { useState, useEffect } from "react"
 import { useParams, useNavigate, useLocation } from "react-router-dom"
 import { homestays } from "../data/homestays"
 import { useWishlist } from "../context/WishlistContext"
 import {
   ArrowLeft, ChevronLeft, ChevronRight, MapPin, Star,
   Users, Calendar, Wifi, Car, Tv, Droplets,
-  UtensilsCrossed, BedDouble, Wind, Heart, X, User, Timer
+  UtensilsCrossed, BedDouble, Wind, Heart, X, User, Timer, CheckCircle2
 } from "lucide-react"
 import Navbar from "../components/Navbar"
 
@@ -43,13 +43,206 @@ const nestEscapes = [
   { icon: "🌿", title: "More Coming Soon", desc: "Curated local experiences, heritage tours, and more being added.", tag: "Soon" },
 ]
 
+// ── Core 72hr logic ───────────────────────────────────────────
+function hoursUntilCheckIn(checkInStr) {
+  if (!checkInStr) return Infinity
+  const checkInDate = new Date(checkInStr + "T00:00:00")
+  return (checkInDate - new Date()) / 3600000
+}
+
+// ── Shared summary rows used in both popups ───────────────────
+function SummaryRows({ h, selectedRoom, checkIn, checkOut, guests, nights, showFee }) {
+  const roomPrice = selectedRoom.discountPrice ?? selectedRoom.regularPrice
+  const subtotal = roomPrice * nights
+  return (
+    <div className="bg-[#2a2a2a] border border-[#3a3a3a] rounded-2xl p-4 flex flex-col gap-2.5">
+      <div className="flex justify-between items-start">
+        <span className="text-[#9a9a9a] text-xs">Homestay</span>
+        <span style={{ fontFamily: "'Playfair Display', serif" }}
+          className="text-[#F8F5F0] text-xs font-semibold text-right max-w-[55%]">{h.name}</span>
+      </div>
+      <div className="flex justify-between">
+        <span className="text-[#9a9a9a] text-xs">Room</span>
+        <span className="text-[#F8F5F0] text-xs font-medium">{selectedRoom.name}</span>
+      </div>
+      <div className="flex justify-between">
+        <span className="text-[#9a9a9a] text-xs">Check-in</span>
+        <span className="text-[#F8F5F0] text-xs">
+          {new Date(checkIn).toLocaleDateString("en-IN", { day: "2-digit", month: "short", year: "numeric" })}
+        </span>
+      </div>
+      <div className="flex justify-between">
+        <span className="text-[#9a9a9a] text-xs">Check-out</span>
+        <span className="text-[#F8F5F0] text-xs">
+          {new Date(checkOut).toLocaleDateString("en-IN", { day: "2-digit", month: "short", year: "numeric" })}
+        </span>
+      </div>
+      <div className="flex justify-between">
+        <span className="text-[#9a9a9a] text-xs">Guests</span>
+        <span className="text-[#F8F5F0] text-xs">{guests} {guests === 1 ? "Guest" : "Guests"}</span>
+      </div>
+      <div className="flex justify-between">
+        <span className="text-[#9a9a9a] text-xs">Duration</span>
+        <span className="text-[#F8F5F0] text-xs">{nights} {nights === 1 ? "Night" : "Nights"}</span>
+      </div>
+      <div className="border-t border-[#3a3a3a] pt-2 mt-1 flex flex-col gap-1.5">
+        <div className="flex justify-between text-xs">
+          <span className="text-[#9a9a9a]">₹{roomPrice} × {nights} nights</span>
+          <span className="text-[#F8F5F0]">₹{subtotal}</span>
+        </div>
+        {showFee ? (
+          <>
+            <div className="flex justify-between text-xs">
+              <span className="text-[#9a9a9a]">Platform fee</span>
+              <span className="text-[#F8F5F0]">₹{h.platformFee}</span>
+            </div>
+            <div className="flex justify-between text-xs italic">
+              <span className="text-[#9a9a9a]">Pay at homestay</span>
+              <span className="text-[#9a9a9a]">₹{Math.max(0, subtotal - h.platformFee)}</span>
+            </div>
+            <div className="border-t border-[#8B6914]/30 pt-2 flex justify-between items-center">
+              <span className="text-[#F8F5F0] text-sm font-semibold">Pay Now</span>
+              <span style={{ fontFamily: "'Playfair Display', serif" }}
+                className="text-[#8B6914] text-xl font-bold">₹{h.platformFee}</span>
+            </div>
+          </>
+        ) : (
+          <>
+            <div className="flex justify-between text-xs italic">
+              <span className="text-[#9a9a9a]">Pay at homestay on arrival</span>
+              <span className="text-[#9a9a9a]">₹{subtotal}</span>
+            </div>
+            <div className="border-t border-[#2D5A3D]/30 pt-2 flex justify-between items-center">
+              <span className="text-[#F8F5F0] text-sm font-semibold">Pay Now</span>
+              <span style={{ fontFamily: "'Playfair Display', serif" }}
+                className="text-[#2D5A3D] text-xl font-bold">₹0</span>
+            </div>
+          </>
+        )}
+      </div>
+    </div>
+  )
+}
+
+// ── POPUP A — Platform fee + Razorpay (booking > 72hrs before check-in) ──
+function BookingConfirmPopupFee({ h, selectedRoom, checkIn, checkOut, guests, nights, onClose, onPay }) {
+  const [seconds, setSeconds] = useState(600)
+  useEffect(() => {
+    const t = setInterval(() => {
+      setSeconds(s => { if (s <= 1) { clearInterval(t); onClose(); return 0 } return s - 1 })
+    }, 1000)
+    return () => clearInterval(t)
+  }, [])
+  const mins = String(Math.floor(seconds / 60)).padStart(2, "0")
+  const secs = String(seconds % 60).padStart(2, "0")
+  const timerColor = seconds < 120 ? "text-red-400" : "text-[#8B6914]"
+
+  return (
+    <div className="fixed inset-0 z-50 flex items-end md:items-center justify-center px-4 pb-4 md:pb-0"
+      style={{ background: "rgba(0,0,0,0.75)", backdropFilter: "blur(6px)" }}>
+      <div className="bg-[#1C1C1C] border border-[#3a3a3a] rounded-3xl p-5 max-w-sm w-full shadow-2xl relative">
+        <button onClick={onClose} className="absolute top-4 right-4 text-[#9a9a9a] hover:text-white transition">
+          <X size={18} />
+        </button>
+        <div className="flex items-center justify-between mb-2">
+          <h3 style={{ fontFamily: "'Playfair Display', serif" }}
+            className="text-[#F8F5F0] text-lg font-bold">Booking Summary</h3>
+          <div className={`flex items-center gap-1.5 ${timerColor} bg-[#2a2a2a] border border-[#3a3a3a] px-3 py-1.5 rounded-full`}>
+            <Timer size={13} />
+            <span className="text-sm font-mono font-bold">{mins}:{secs}</span>
+          </div>
+        </div>
+        <p className="text-[#9a9a9a] text-xs mb-4">
+          Summary expires in <span className={`font-semibold ${timerColor}`}>{mins}:{secs}</span>. Complete payment before the timer runs out.
+        </p>
+
+        <SummaryRows h={h} selectedRoom={selectedRoom} checkIn={checkIn} checkOut={checkOut}
+          guests={guests} nights={nights} showFee={true} />
+
+        <div className="mt-3 bg-[#2D5A3D]/10 border border-[#2D5A3D]/30 rounded-xl px-3 py-2.5">
+          <p className="text-[#2D5A3D] text-xs font-medium">🛡️ Full refund policy</p>
+          <p className="text-[#9a9a9a] text-xs mt-0.5">
+            Platform fee fully refunded if cancelled before 48 hrs of check-in (00:00). No questions asked.
+          </p>
+        </div>
+
+        <p className="text-[#9a9a9a] text-xs text-center mt-3 mb-3">
+          You will be redirected to Razorpay to complete your booking securely.
+        </p>
+        <button onClick={onPay}
+          className="w-full bg-[#2D5A3D] text-white py-4 rounded-2xl font-semibold text-sm hover:bg-[#8B6914] transition shadow-lg"
+          style={{ fontFamily: "'Playfair Display', serif" }}>
+          Proceed to Payment — ₹{h.platformFee}
+        </button>
+        <p className="text-center text-[#9a9a9a] text-xs mt-2">🔒 Secured by Razorpay</p>
+        <p className="text-center text-[#8B6914] text-xs mt-1 italic">
+          ✦ Owner contact shared via SMS, Email & WhatsApp after confirmation
+        </p>
+      </div>
+    </div>
+  )
+}
+
+// ── POPUP B — Direct booking (within 72hrs of check-in) ──────
+function BookingConfirmPopupDirect({ h, selectedRoom, checkIn, checkOut, guests, nights, onClose, onConfirm }) {
+  const roomPrice = selectedRoom.discountPrice ?? selectedRoom.regularPrice
+  const subtotal = roomPrice * nights
+  return (
+    <div className="fixed inset-0 z-50 flex items-end md:items-center justify-center px-4 pb-4 md:pb-0"
+      style={{ background: "rgba(0,0,0,0.75)", backdropFilter: "blur(6px)" }}>
+      <div className="bg-[#1C1C1C] border border-[#3a3a3a] rounded-3xl p-5 max-w-sm w-full shadow-2xl relative">
+        <button onClick={onClose} className="absolute top-4 right-4 text-[#9a9a9a] hover:text-white transition">
+          <X size={18} />
+        </button>
+        <div className="flex items-center gap-2 mb-1">
+          <h3 style={{ fontFamily: "'Playfair Display', serif" }}
+            className="text-[#F8F5F0] text-lg font-bold">Booking Summary</h3>
+          <span className="text-xs bg-[#2D5A3D]/20 text-[#2D5A3D] border border-[#2D5A3D]/40 px-2 py-0.5 rounded-full whitespace-nowrap">
+            No Payment Now
+          </span>
+        </div>
+
+        <div className="bg-[#1a2a1a] border border-[#2D5A3D]/40 rounded-xl px-3 py-2.5 mb-4">
+          <p className="text-[#2D5A3D] text-xs font-semibold">⚡ Last-minute booking</p>
+          <p className="text-[#9a9a9a] text-xs mt-0.5">
+            Your check-in is within 72 hours — no platform fee is charged. Full amount paid directly at the homestay on arrival.
+          </p>
+        </div>
+
+        <SummaryRows h={h} selectedRoom={selectedRoom} checkIn={checkIn} checkOut={checkOut}
+          guests={guests} nights={nights} showFee={false} />
+
+        <div className="mt-3 bg-[#8B6914]/10 border border-[#8B6914]/30 rounded-xl px-3 py-2.5">
+          <p className="text-[#8B6914] text-xs font-medium">💰 Pay at homestay on arrival</p>
+          <p className="text-[#9a9a9a] text-xs mt-0.5">
+            Full amount of ₹{subtotal} to be paid in cash or UPI directly to the homestay on check-in.
+          </p>
+        </div>
+
+        <p className="text-[#9a9a9a] text-xs text-center mt-3 mb-3">
+          Booking confirmation and owner contact will be shared via SMS, Email & WhatsApp immediately.
+        </p>
+        <button onClick={onConfirm}
+          className="w-full text-white py-4 rounded-2xl font-semibold text-sm transition shadow-lg flex items-center justify-center gap-2"
+          style={{ fontFamily: "'Playfair Display', serif", background: "linear-gradient(135deg, #2D5A3D, #3a7a52)" }}>
+          <CheckCircle2 size={16} />
+          Confirm Booking — No Payment Required
+        </button>
+        <p className="text-center text-[#8B6914] text-xs mt-2 italic">
+          ✦ Owner contact shared via SMS, Email & WhatsApp after confirmation
+        </p>
+      </div>
+    </div>
+  )
+}
+
+// ── Login prompt ──────────────────────────────────────────────
 function LoginPromptPopup({ onClose }) {
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center px-4"
       style={{ background: "rgba(0,0,0,0.7)", backdropFilter: "blur(6px)" }}>
       <div className="bg-[#1C1C1C] border border-[#3a3a3a] rounded-3xl p-6 max-w-sm w-full shadow-2xl relative">
-        <button onClick={onClose}
-          className="absolute top-4 right-4 text-[#9a9a9a] hover:text-white transition">
+        <button onClick={onClose} className="absolute top-4 right-4 text-[#9a9a9a] hover:text-white transition">
           <X size={18} />
         </button>
         <div className="flex flex-col items-center text-center gap-4">
@@ -59,9 +252,7 @@ function LoginPromptPopup({ onClose }) {
           <div>
             <h3 style={{ fontFamily: "'Playfair Display', serif" }}
               className="text-[#F8F5F0] text-xl font-bold mb-1">Login to Continue</h3>
-            <p className="text-[#9a9a9a] text-sm">
-              To confirm your booking, please log in first.
-            </p>
+            <p className="text-[#9a9a9a] text-sm">To confirm your booking, please log in first.</p>
           </div>
           <div className="bg-[#2a2a2a] border border-[#3a3a3a] rounded-2xl p-4 w-full text-left">
             <p className="text-[#8B6914] text-xs font-medium mb-2">How to login</p>
@@ -70,7 +261,7 @@ function LoginPromptPopup({ onClose }) {
                 <User size={14} className="text-white" />
               </div>
               <p className="text-[#9a9a9a] text-sm">
-                Tap the <span className="text-[#F8F5F0] font-medium">user icon</span> on the top right corner of the page. Enter your phone or email to receive an OTP and log in instantly.
+                Tap the <span className="text-[#F8F5F0] font-medium">user icon</span> on the top right. Enter your phone or email to receive an OTP and log in instantly.
               </p>
             </div>
           </div>
@@ -84,115 +275,7 @@ function LoginPromptPopup({ onClose }) {
   )
 }
 
-function BookingConfirmPopup({ h, selectedRoom, checkIn, checkOut, guests, nights, onClose, onPay }) {
-  const [seconds, setSeconds] = useState(600)
-
-  useEffect(() => {
-    const t = setInterval(() => {
-      setSeconds(s => {
-        if (s <= 1) { clearInterval(t); onClose(); return 0 }
-        return s - 1
-      })
-    }, 1000)
-    return () => clearInterval(t)
-  }, [])
-
-  const mins = String(Math.floor(seconds / 60)).padStart(2, "0")
-  const secs = String(seconds % 60).padStart(2, "0")
-  const roomPrice = selectedRoom.discountPrice ?? selectedRoom.regularPrice
-  const subtotal = roomPrice * nights
-  const timerColor = seconds < 120 ? "text-red-400" : "text-[#8B6914]"
-
-  return (
-    <div className="fixed inset-0 z-50 flex items-end md:items-center justify-center px-4 pb-4 md:pb-0"
-      style={{ background: "rgba(0,0,0,0.75)", backdropFilter: "blur(6px)" }}>
-      <div className="bg-[#1C1C1C] border border-[#3a3a3a] rounded-3xl p-5 max-w-sm w-full shadow-2xl relative">
-        <button onClick={onClose}
-          className="absolute top-4 right-4 text-[#9a9a9a] hover:text-white transition">
-          <X size={18} />
-        </button>
-
-        {/* Timer */}
-        <div className="flex items-center justify-between mb-4">
-          <h3 style={{ fontFamily: "'Playfair Display', serif" }}
-            className="text-[#F8F5F0] text-lg font-bold">Booking Summary</h3>
-          <div className={`flex items-center gap-1.5 ${timerColor} bg-[#2a2a2a] border border-[#3a3a3a] px-3 py-1.5 rounded-full`}>
-            <Timer size={13} />
-            <span className="text-sm font-mono font-bold">{mins}:{secs}</span>
-          </div>
-        </div>
-
-        <p className="text-[#9a9a9a] text-xs mb-4">
-          This summary will expire in <span className={`font-semibold ${timerColor}`}>{mins}:{secs}</span>. Complete payment before the timer runs out.
-        </p>
-
-        {/* Summary Card */}
-        <div className="bg-[#2a2a2a] border border-[#3a3a3a] rounded-2xl p-4 mb-4 flex flex-col gap-2.5">
-          <div className="flex justify-between items-start">
-            <span className="text-[#9a9a9a] text-xs">Homestay</span>
-            <span style={{ fontFamily: "'Playfair Display', serif" }}
-              className="text-[#F8F5F0] text-xs font-semibold text-right max-w-[55%]">{h.name}</span>
-          </div>
-          <div className="flex justify-between">
-            <span className="text-[#9a9a9a] text-xs">Room</span>
-            <span className="text-[#F8F5F0] text-xs font-medium">{selectedRoom.name}</span>
-          </div>
-          <div className="flex justify-between">
-            <span className="text-[#9a9a9a] text-xs">Check-in</span>
-            <span className="text-[#F8F5F0] text-xs">{new Date(checkIn).toLocaleDateString("en-IN", { day: "2-digit", month: "short", year: "numeric" })}</span>
-          </div>
-          <div className="flex justify-between">
-            <span className="text-[#9a9a9a] text-xs">Check-out</span>
-            <span className="text-[#F8F5F0] text-xs">{new Date(checkOut).toLocaleDateString("en-IN", { day: "2-digit", month: "short", year: "numeric" })}</span>
-          </div>
-          <div className="flex justify-between">
-            <span className="text-[#9a9a9a] text-xs">Guests</span>
-            <span className="text-[#F8F5F0] text-xs">{guests} {guests === 1 ? "Guest" : "Guests"}</span>
-          </div>
-          <div className="flex justify-between">
-            <span className="text-[#9a9a9a] text-xs">Duration</span>
-            <span className="text-[#F8F5F0] text-xs">{nights} {nights === 1 ? "Night" : "Nights"}</span>
-          </div>
-          <div className="border-t border-[#3a3a3a] pt-2 mt-1 flex flex-col gap-1.5">
-            <div className="flex justify-between text-xs">
-              <span className="text-[#9a9a9a]">₹{roomPrice} × {nights} nights</span>
-              <span className="text-[#F8F5F0]">₹{subtotal}</span>
-            </div>
-            <div className="flex justify-between text-xs">
-              <span className="text-[#9a9a9a]">Platform fee</span>
-              <span className="text-[#F8F5F0]">₹{h.platformFee}</span>
-            </div>
-            <div className="flex justify-between text-xs italic">
-              <span className="text-[#9a9a9a]">Pay at homestay</span>
-              <span className="text-[#9a9a9a]">₹{Math.max(0, subtotal - h.platformFee)}</span>
-            </div>
-          </div>
-          <div className="border-t border-[#8B6914]/30 pt-2 flex justify-between items-center">
-            <span className="text-[#F8F5F0] text-sm font-semibold">Pay Now</span>
-            <span style={{ fontFamily: "'Playfair Display', serif" }}
-              className="text-[#8B6914] text-xl font-bold">₹{h.platformFee}</span>
-          </div>
-        </div>
-
-        <p className="text-[#9a9a9a] text-xs text-center mb-4">
-          You will be redirected to the payment gateway to complete your booking securely via Razorpay.
-        </p>
-        <button onClick={onPay}
-          className="w-full bg-[#2D5A3D] text-white py-4 rounded-2xl font-semibold text-sm hover:bg-[#8B6914] transition shadow-lg"
-          style={{ fontFamily: "'Playfair Display', serif" }}>
-          Proceed to Payment — ₹{h.platformFee}
-        </button>
-        <p className="text-center text-[#9a9a9a] text-xs mt-3">
-          🔒 Secured by Razorpay · Full refund if cancelled 48 hrs before check-in
-        </p>
-        <p className="text-center text-[#8B6914] text-xs mt-2 italic">
-          ✦ Homestay details & owner contact will be shared via SMS, Email & WhatsApp instantly after booking confirmation
-        </p>
-      </div>
-    </div>
-  )
-}
-
+// ── Main Page ─────────────────────────────────────────────────
 export default function HomestayPage({ onLogoClick, loggedIn, onLogin, onLogout }) {
   const { id } = useParams()
   const navigate = useNavigate()
@@ -200,7 +283,6 @@ export default function HomestayPage({ onLogoClick, loggedIn, onLogin, onLogout 
   const h = homestays.find(h => h.id === id)
   const [imgIndex, setImgIndex] = useState(0)
 
-  // Get search data from location state if available
   const locationState = location.state || {}
   const searchData = locationState.searchData || {}
 
@@ -219,25 +301,22 @@ export default function HomestayPage({ onLogoClick, loggedIn, onLogin, onLogout 
   const hasSearchData = !!(checkIn || checkOut || (guests && guests > 1))
   const [selectedRoom, setSelectedRoom] = useState(null)
   const [showLoginPrompt, setShowLoginPrompt] = useState(false)
-  const [showBookingConfirm, setShowBookingConfirm] = useState(false)
+  const [showFeePopup, setShowFeePopup] = useState(false)
+  const [showDirectPopup, setShowDirectPopup] = useState(false)
   const [showNestEscapes, setShowNestEscapes] = useState(false)
   const { toggleWishlist, isWishlisted } = useWishlist()
 
   const getTodayDate = () => new Date().toISOString().split("T")[0]
 
   const handleCheckInChange = (value) => {
-    const today = getTodayDate()
-    if (value < today) return
+    if (value < getTodayDate()) return
     setCheckIn(value)
     if (checkOut && checkOut < value) setCheckOut("")
   }
 
   const handleCheckOutChange = (value) => {
     if (checkIn && value < checkIn) return
-    if (!checkIn) {
-      const today = getTodayDate()
-      if (value <= today) return
-    }
+    if (!checkIn && value <= getTodayDate()) return
     setCheckOut(value)
   }
 
@@ -257,14 +336,25 @@ export default function HomestayPage({ onLogoClick, loggedIn, onLogin, onLogout 
   const roomPrice = selectedRoom ? (selectedRoom.discountPrice ?? selectedRoom.regularPrice) : 0
   const subtotal = roomPrice * nights
 
+  // ── 72hr gate ────────────────────────────────────────────────
+  const hrs = hoursUntilCheckIn(checkIn)
+  const isDirectMode = checkIn && hrs <= 72   // within 72hrs → no payment
+  // no checkIn set → always show fee mode button
+
   const handleReserve = () => {
     if (!loggedIn) { setShowLoginPrompt(true); return }
-    setShowBookingConfirm(true)
+    if (isDirectMode) setShowDirectPopup(true)
+    else setShowFeePopup(true)
   }
 
   const handlePay = () => {
-    setShowBookingConfirm(false)
+    setShowFeePopup(false)
     alert("Redirecting to Razorpay... (Phase 4)")
+  }
+
+  const handleDirectConfirm = () => {
+    setShowDirectPopup(false)
+    alert("Booking confirmed! Owner details sent to you shortly. (Phase 4)")
   }
 
   return (
@@ -272,17 +362,15 @@ export default function HomestayPage({ onLogoClick, loggedIn, onLogin, onLogout 
       <Navbar onLogoClick={onLogoClick} loggedIn={loggedIn} onLogin={onLogin} onLogout={onLogout} />
 
       {showLoginPrompt && <LoginPromptPopup onClose={() => setShowLoginPrompt(false)} />}
-      {showBookingConfirm && selectedRoom && (
-        <BookingConfirmPopup
-          h={h}
-          selectedRoom={selectedRoom}
-          checkIn={checkIn}
-          checkOut={checkOut}
-          guests={guests}
-          nights={nights}
-          onClose={() => setShowBookingConfirm(false)}
-          onPay={handlePay}
-        />
+      {showFeePopup && selectedRoom && (
+        <BookingConfirmPopupFee h={h} selectedRoom={selectedRoom}
+          checkIn={checkIn} checkOut={checkOut} guests={guests} nights={nights}
+          onClose={() => setShowFeePopup(false)} onPay={handlePay} />
+      )}
+      {showDirectPopup && selectedRoom && (
+        <BookingConfirmPopupDirect h={h} selectedRoom={selectedRoom}
+          checkIn={checkIn} checkOut={checkOut} guests={guests} nights={nights}
+          onClose={() => setShowDirectPopup(false)} onConfirm={handleDirectConfirm} />
       )}
       {showNestEscapes && (
         <div className="fixed inset-0 z-50 flex items-center justify-center px-4"
@@ -309,7 +397,6 @@ export default function HomestayPage({ onLogoClick, loggedIn, onLogin, onLogout 
       )}
 
       <div className="pt-20 max-w-3xl mx-auto px-4 pb-24">
-
         <button onClick={() => navigate("/")}
           className="flex items-center gap-2 text-[#9a9a9a] hover:text-[#F8F5F0] transition mt-4 mb-6 text-sm">
           <ArrowLeft size={16} /> Back to Homestays
@@ -363,8 +450,7 @@ export default function HomestayPage({ onLogoClick, loggedIn, onLogin, onLogout 
                 💑 Couple Friendly
               </span>
             </div>
-            <button
-              onClick={() => toggleWishlist(h)}
+            <button onClick={() => toggleWishlist(h)}
               style={{ transition: "transform 0.2s ease" }}
               className={`flex items-center gap-2 text-sm mt-2 ${isWishlisted(h.id) ? "text-red-500" : "text-[#9a9a9a] hover:text-red-500"} transition`}>
               <Heart size={16} fill={isWishlisted(h.id) ? "currentColor" : "none"} />
@@ -386,42 +472,30 @@ export default function HomestayPage({ onLogoClick, loggedIn, onLogin, onLogout 
             className="text-[#F8F5F0] text-lg font-semibold mb-4">What's Included</h2>
           <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
             {amenities.map((a, i) => (
-              <div key={i}
-                className="flex items-center gap-2 bg-[#2a2a2a] border border-[#3a3a3a] rounded-2xl px-3 py-3 text-sm text-[#F8F5F0]">
+              <div key={i} className="flex items-center gap-2 bg-[#2a2a2a] border border-[#3a3a3a] rounded-2xl px-3 py-3 text-sm text-[#F8F5F0]">
                 <span className="text-[#8B6914]">{a.icon}</span>
                 {a.label}
               </div>
             ))}
           </div>
-          <p className="text-[#9a9a9a] text-xs mt-3 italic px-1">
-            ✦ Balcony available exclusively in Premium 1 BHK
-          </p>
+          <p className="text-[#9a9a9a] text-xs mt-3 italic px-1">✦ Balcony available exclusively in Premium 1 BHK</p>
         </div>
 
         <div className="border-t border-[#3a3a3a] my-6" />
 
         {/* Search Criteria Banner */}
         {hasSearchData && (
-          <div className="bg-gradient-to-r from-[#8B6914]/20 to-[#2D5A3D]/20 rounded-2xl px-4 py-3 mb-6 border border-[#8B6914]/30 flex items-center justify-between animate-fadeIn">
+          <div className="bg-gradient-to-r from-[#8B6914]/20 to-[#2D5A3D]/20 rounded-2xl px-4 py-3 mb-6 border border-[#8B6914]/30 flex items-center justify-between">
             <div className="flex-1">
               <p className="text-[#8B6914] font-semibold text-sm mb-2">✦ Your Search Details Applied</p>
               <div className="flex flex-wrap gap-3 text-xs text-[#F8F5F0]">
-                {checkIn && (
-                  <div>📅 {new Date(checkIn).toLocaleDateString("en-IN", { day: "2-digit", month: "short", year: "2-digit" })}</div>
-                )}
-                {checkOut && (
-                  <div>→ {new Date(checkOut).toLocaleDateString("en-IN", { day: "2-digit", month: "short", year: "2-digit" })}</div>
-                )}
-                {guests && guests > 1 && (
-                  <div>👥 {guests} {guests === 1 ? "Guest" : "Guests"}</div>
-                )}
+                {checkIn && <div>📅 {new Date(checkIn).toLocaleDateString("en-IN", { day: "2-digit", month: "short", year: "2-digit" })}</div>}
+                {checkOut && <div>→ {new Date(checkOut).toLocaleDateString("en-IN", { day: "2-digit", month: "short", year: "2-digit" })}</div>}
+                {guests > 1 && <div>👥 {guests} Guests</div>}
               </div>
             </div>
-            <button
-              onClick={() => { setCheckIn(""); setCheckOut(""); setGuests(1) }}
-              className="flex-shrink-0 text-[#9a9a9a] hover:text-[#F8F5F0] transition text-xs underline ml-4">
-              Clear
-            </button>
+            <button onClick={() => { setCheckIn(""); setCheckOut(""); setGuests(1) }}
+              className="flex-shrink-0 text-[#9a9a9a] hover:text-[#F8F5F0] transition text-xs underline ml-4">Clear</button>
           </div>
         )}
 
@@ -482,11 +556,13 @@ export default function HomestayPage({ onLogoClick, loggedIn, onLogin, onLogout 
           </div>
         </div>
 
-        {/* Booking Card */}
+        {/* ── BOOKING CARD ── */}
         {selectedRoom && (
           <div className="bg-[#2a2a2a] rounded-3xl border border-[#3a3a3a] p-5 shadow-xl mb-8">
             <p style={{ fontFamily: "'Playfair Display', serif" }}
               className="text-[#F8F5F0] text-base font-semibold mb-4">{selectedRoom.name}</p>
+
+            {/* Dates */}
             <div className="grid grid-cols-2 gap-3 mb-4">
               <div className="bg-[#1C1C1C] rounded-2xl px-4 py-3 border border-[#3a3a3a]">
                 <p className="text-[#8B6914] text-xs font-medium mb-1 flex items-center gap-1">
@@ -494,7 +570,7 @@ export default function HomestayPage({ onLogoClick, loggedIn, onLogin, onLogout 
                 </p>
                 <input type="date" value={checkIn}
                   onChange={e => handleCheckInChange(e.target.value)}
-                  min={new Date().toISOString().split("T")[0]}
+                  min={getTodayDate()}
                   className="bg-transparent text-[#F8F5F0] text-sm outline-none w-full" />
               </div>
               <div className="bg-[#1C1C1C] rounded-2xl px-4 py-3 border border-[#3a3a3a]">
@@ -503,10 +579,12 @@ export default function HomestayPage({ onLogoClick, loggedIn, onLogin, onLogout 
                 </p>
                 <input type="date" value={checkOut}
                   onChange={e => handleCheckOutChange(e.target.value)}
-                  min={checkIn || new Date().toISOString().split("T")[0]}
+                  min={checkIn || getTodayDate()}
                   className="bg-transparent text-[#F8F5F0] text-sm outline-none w-full" />
               </div>
             </div>
+
+            {/* Guests */}
             <div className="bg-[#1C1C1C] rounded-2xl px-4 py-3 border border-[#3a3a3a] mb-5">
               <p className="text-[#8B6914] text-xs font-medium mb-2 flex items-center gap-1">
                 <Users size={11} /> Guests
@@ -524,33 +602,75 @@ export default function HomestayPage({ onLogoClick, loggedIn, onLogin, onLogout 
                 {checkIn && checkOut ? ` · ${nights} ${nights === 1 ? "night" : "nights"} selected` : ""}
               </p>
             </div>
+
+            {/* Price breakdown — changes by mode */}
             <div className="border-t border-[#3a3a3a] pt-4 mb-5 flex flex-col gap-2">
               <div className="flex justify-between text-sm">
                 <span className="text-[#9a9a9a]">₹{roomPrice} × {nights} {nights === 1 ? "night" : "nights"}</span>
                 <span className="text-[#F8F5F0]">₹{subtotal}</span>
               </div>
-              <div className="flex justify-between text-sm">
-                <span className="text-[#9a9a9a]">Platform fee</span>
-                <span className="text-[#F8F5F0]">₹{h.platformFee}</span>
-              </div>
-              <div className="flex justify-between text-sm text-[#9a9a9a] italic">
-                <span>Remaining (pay at homestay)</span>
-                <span>₹{Math.max(0, subtotal - h.platformFee)}</span>
-              </div>
-              <div className="border-t border-[#3a3a3a] pt-2 flex justify-between font-semibold">
-                <span className="text-[#F8F5F0]">Pay now</span>
-                <span style={{ fontFamily: "'Playfair Display', serif" }}
-                  className="text-[#8B6914] text-lg">₹{h.platformFee}</span>
-              </div>
+              {isDirectMode ? (
+                <>
+                  <div className="flex justify-between text-sm text-[#9a9a9a] italic">
+                    <span>Pay at homestay on arrival</span>
+                    <span>₹{subtotal}</span>
+                  </div>
+                  <div className="border-t border-[#2D5A3D]/30 pt-2 flex justify-between font-semibold">
+                    <span className="text-[#F8F5F0]">Pay now</span>
+                    <span style={{ fontFamily: "'Playfair Display', serif" }}
+                      className="text-[#2D5A3D] text-lg">₹0</span>
+                  </div>
+                </>
+              ) : (
+                <>
+                  <div className="flex justify-between text-sm">
+                    <span className="text-[#9a9a9a]">Platform fee</span>
+                    <span className="text-[#F8F5F0]">₹{h.platformFee}</span>
+                  </div>
+                  <div className="flex justify-between text-sm text-[#9a9a9a] italic">
+                    <span>Remaining (pay at homestay)</span>
+                    <span>₹{Math.max(0, subtotal - h.platformFee)}</span>
+                  </div>
+                  <div className="border-t border-[#3a3a3a] pt-2 flex justify-between font-semibold">
+                    <span className="text-[#F8F5F0]">Pay now</span>
+                    <span style={{ fontFamily: "'Playfair Display', serif" }}
+                      className="text-[#8B6914] text-lg">₹{h.platformFee}</span>
+                  </div>
+                </>
+              )}
             </div>
-            <button onClick={handleReserve}
-              className="w-full bg-[#2D5A3D] text-white py-4 rounded-2xl font-semibold text-base hover:bg-[#8B6914] transition shadow-lg"
-              style={{ fontFamily: "'Playfair Display', serif" }}>
-              Reserve Now — Pay ₹{h.platformFee} to Confirm
-            </button>
-            <p className="text-center text-[#9a9a9a] text-xs mt-3">
-              Full refund if cancelled 48 hrs before check-in · Remaining amount paid at homestay
-            </p>
+
+            {/* ── THE BUTTON — two faces ── */}
+            {isDirectMode ? (
+              <>
+                <div className="bg-[#1a2a1a] border border-[#2D5A3D]/40 rounded-xl px-3 py-2 mb-3">
+                  <p className="text-[#2D5A3D] text-xs font-semibold">⚡ Last-minute booking</p>
+                  <p className="text-[#9a9a9a] text-xs mt-0.5">
+                    Check-in within 72 hours — no platform fee. Pay full amount at homestay on arrival.
+                  </p>
+                </div>
+                <button onClick={handleReserve}
+                  className="w-full text-white py-4 rounded-2xl font-semibold text-base transition shadow-lg flex items-center justify-center gap-2"
+                  style={{ fontFamily: "'Playfair Display', serif", background: "linear-gradient(135deg, #2D5A3D, #3a7a52)" }}>
+                  <CheckCircle2 size={18} />
+                  Book Now — No Payment Required
+                </button>
+                <p className="text-center text-[#9a9a9a] text-xs mt-3">
+                  Full amount ₹{subtotal} paid directly at homestay on check-in
+                </p>
+              </>
+            ) : (
+              <>
+                <button onClick={handleReserve}
+                  className="w-full bg-[#2D5A3D] text-white py-4 rounded-2xl font-semibold text-base hover:bg-[#8B6914] transition shadow-lg"
+                  style={{ fontFamily: "'Playfair Display', serif" }}>
+                  Reserve Now — Pay ₹{h.platformFee} to Confirm
+                </button>
+                <p className="text-center text-[#9a9a9a] text-xs mt-3">
+                  Full refund if cancelled 48 hrs before check-in · Remaining amount paid at homestay
+                </p>
+              </>
+            )}
           </div>
         )}
 
@@ -566,8 +686,7 @@ export default function HomestayPage({ onLogoClick, loggedIn, onLogin, onLogout 
           <p className="text-[#9a9a9a] text-xs mb-4">Handpicked add-ons to elevate your stay</p>
           <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
             {nestEscapes.map((e, i) => (
-              <div key={i}
-                onClick={() => setShowNestEscapes(true)}
+              <div key={i} onClick={() => setShowNestEscapes(true)}
                 className="bg-[#2a2a2a] border border-[#3a3a3a] rounded-2xl p-4 hover:border-[#8B6914] transition cursor-pointer">
                 <div className="text-3xl mb-2">{e.icon}</div>
                 <p style={{ fontFamily: "'Playfair Display', serif" }}
@@ -632,7 +751,6 @@ export default function HomestayPage({ onLogoClick, loggedIn, onLogin, onLogout 
             ))}
           </div>
         </div>
-
       </div>
     </div>
   )
