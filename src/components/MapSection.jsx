@@ -134,7 +134,7 @@ export default function MapSection({
         .addTo(map.current)
     })
 
-    // GTA-style landmark direction pills
+    // GTA-style landmark direction pills - ALWAYS SHOW
     if (alwaysShowDirectionPills) {
       LANDMARKS.forEach(landmark => {
         const distKm = getDistanceKm(SOUL_NEST_LAT, SOUL_NEST_LNG, landmark.lat, landmark.lng)
@@ -255,15 +255,15 @@ export default function MapSection({
     }
   }, [searchCoords, searchQuery])
 
-  // Zoom animation to homepage default center
+  // Zoom animation from India → Jorhat on initial load
   useEffect(() => {
     if (!triggerZoom || !map.current) return
 
     const performZoom = () => {
       if (map.current) {
         map.current.flyTo({
-          center: [defaultCenter.lng, defaultCenter.lat],
-          zoom: defaultZoom,
+          center: [94.2037, 26.7509],
+          zoom: 9.5,
           duration: 3000,
           easing: (t) => t * (2 - t),
         })
@@ -275,7 +275,7 @@ export default function MapSection({
     } else {
       map.current.once("load", performZoom)
     }
-  }, [triggerZoom, defaultCenter, defaultZoom])
+  }, [triggerZoom])
 
   // User location + distance line
   const enableLocation = () => {
