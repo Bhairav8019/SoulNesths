@@ -135,75 +135,73 @@ export default function MapSection({
     })
 
     // GTA-style landmark direction pills - ALWAYS SHOW
-    if (alwaysShowDirectionPills) {
-      LANDMARKS.forEach(landmark => {
-        const distKm = getDistanceKm(SOUL_NEST_LAT, SOUL_NEST_LNG, landmark.lat, landmark.lng)
-        const distLabel = distKm > 999 ? `${(distKm / 1000).toFixed(1)}k km` : `${Math.round(distKm)} km`
+    LANDMARKS.forEach(landmark => {
+      const distKm = getDistanceKm(SOUL_NEST_LAT, SOUL_NEST_LNG, landmark.lat, landmark.lng)
+      const distLabel = distKm > 999 ? `${(distKm / 1000).toFixed(1)}k km` : `${Math.round(distKm)} km`
 
-        const el = document.createElement("div")
-        el.style.cssText = `
+      const el = document.createElement("div")
+      el.style.cssText = `
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        pointer-events: none;
+        filter: drop-shadow(0 0 8px ${landmark.glowColor});
+      `
+
+      el.innerHTML = `
+        <div style="
+          position: relative;
           display: flex;
           flex-direction: column;
           align-items: center;
-          pointer-events: none;
-          filter: drop-shadow(0 0 8px ${landmark.glowColor});
-        `
-
-        el.innerHTML = `
+        ">
           <div style="
-            position: relative;
+            background: linear-gradient(135deg, rgba(10,8,6,0.95), rgba(28,20,8,0.95));
+            border: 1px solid ${landmark.color};
+            color: #F8F5F0;
+            font-family: 'Playfair Display', serif;
+            font-size: 9.5px;
+            font-weight: 700;
+            padding: 4px 10px;
+            border-radius: 20px;
+            white-space: nowrap;
+            letter-spacing: 0.06em;
+            text-transform: uppercase;
+            box-shadow: 0 2px 10px rgba(0,0,0,0.6);
+            text-shadow: 0 0 8px ${landmark.color};
             display: flex;
-            flex-direction: column;
             align-items: center;
+            gap: 5px;
           ">
-            <div style="
-              background: linear-gradient(135deg, rgba(10,8,6,0.95), rgba(28,20,8,0.95));
-              border: 1px solid ${landmark.color};
-              color: #F8F5F0;
-              font-family: 'Playfair Display', serif;
-              font-size: 9.5px;
-              font-weight: 700;
-              padding: 4px 10px;
-              border-radius: 20px;
-              white-space: nowrap;
-              letter-spacing: 0.06em;
-              text-transform: uppercase;
-              box-shadow: 0 2px 10px rgba(0,0,0,0.6);
-              text-shadow: 0 0 8px ${landmark.color};
-              display: flex;
-              align-items: center;
-              gap: 5px;
-            ">
-              <span>${landmark.name}</span>
-              <span style="
-                color: ${landmark.color};
-                font-size: 8.5px;
-                font-family: 'Courier New', monospace;
-                font-weight: 400;
-                opacity: 0.9;
-                letter-spacing: 0.04em;
-              ">${distLabel}</span>
-            </div>
-            <div style="
-              width: 1.5px;
-              height: 10px;
-              background: linear-gradient(to bottom, ${landmark.color}, transparent);
-            "></div>
-            <div style="
-              width: 5px;
-              height: 5px;
-              border-radius: 50%;
-              background: ${landmark.color};
-              box-shadow: 0 0 8px ${landmark.glowColor};
-            "></div>
+            <span>${landmark.name}</span>
+            <span style="
+              color: ${landmark.color};
+              font-size: 8.5px;
+              font-family: 'Courier New', monospace;
+              font-weight: 400;
+              opacity: 0.9;
+              letter-spacing: 0.04em;
+            ">${distLabel}</span>
           </div>
-        `
+          <div style="
+            width: 1.5px;
+            height: 10px;
+            background: linear-gradient(to bottom, ${landmark.color}, transparent);
+          "></div>
+          <div style="
+            width: 5px;
+            height: 5px;
+            border-radius: 50%;
+            background: ${landmark.color};
+            box-shadow: 0 0 8px ${landmark.glowColor};
+          "></div>
+        </div>
+      `
 
-        new mapboxgl.Marker({ element: el, anchor: "bottom" })
-          .setLngLat([landmark.lng, landmark.lat])
-          .addTo(map.current)
-      })
-    }
+      new mapboxgl.Marker({ element: el, anchor: "bottom" })
+        .setLngLat([landmark.lng, landmark.lat])
+        .addTo(map.current)
+    })
 
     return () => {
       if (map.current) {
