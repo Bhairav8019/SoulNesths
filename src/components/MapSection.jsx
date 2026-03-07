@@ -60,7 +60,7 @@ export default function MapSection({
   searchCheckOut = null,
   searchGuests = null,
   defaultCenter = { lat: 26.7509, lng: 94.2037 }, // Soul Nest / Jorhat center
-  defaultZoom = 11, // slightly zoomed out to keep 3 direction pills visible
+  defaultZoom = 9.5, // zoomed out further to show all 3 landmarks (Kaziranga, Majuli, Sivasagar)
   alwaysShowDirectionPills = false,
 }) {
   const mapContainer = useRef(null)
