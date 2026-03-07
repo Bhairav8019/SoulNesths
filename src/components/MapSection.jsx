@@ -74,8 +74,8 @@ export default function MapSection({
     map.current = new mapboxgl.Map({
       container: mapContainer.current,
       style: "mapbox://styles/mapbox/satellite-streets-v12",
-      center: [defaultCenter.lng, defaultCenter.lat],
-      zoom: defaultZoom,
+      center: [78.9629, 20.5937], // Start at India center
+      zoom: 4, // Zoomed out to show whole India
     })
 
     map.current.addControl(new mapboxgl.NavigationControl(), "top-right")
@@ -203,6 +203,16 @@ export default function MapSection({
         .addTo(map.current)
     })
 
+    // Animate from India → Jorhat on load
+    map.current.once("load", () => {
+      map.current.flyTo({
+        center: [94.2037, 26.7509],
+        zoom: 9.5,
+        duration: 3000,
+        easing: (t) => t * (2 - t),
+      })
+    })
+
     return () => {
       if (map.current) {
         map.current.remove()
@@ -252,28 +262,6 @@ export default function MapSection({
         .addTo(map.current)
     }
   }, [searchCoords, searchQuery])
-
-  // Zoom animation from India → Jorhat on initial load
-  useEffect(() => {
-    if (!triggerZoom || !map.current) return
-
-    const performZoom = () => {
-      if (map.current) {
-        map.current.flyTo({
-          center: [94.2037, 26.7509],
-          zoom: 9.5,
-          duration: 3000,
-          easing: (t) => t * (2 - t),
-        })
-      }
-    }
-
-    if (map.current.loaded()) {
-      performZoom()
-    } else {
-      map.current.once("load", performZoom)
-    }
-  }, [triggerZoom])
 
   // User location + distance line
   const enableLocation = () => {
