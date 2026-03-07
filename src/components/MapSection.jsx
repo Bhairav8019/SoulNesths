@@ -29,7 +29,7 @@ const SOUL_NEST_LAT = 26.768666
 const SOUL_NEST_LNG = 94.188933
 
 const LANDMARKS = [
-  { id: "kaziranga", name: "Kaziranga National Park", lat: 26.52506,  lng: 92.99185, color: "#C8860A", glowColor: "rgba(200,134,10,0.6)" },
+  { id: "kaziranga", name: "Kaziranga National Park", lat: 26.67300,  lng: 93.35594, color: "#C8860A", glowColor: "rgba(200,134,10,0.6)" },
   { id: "majuli",    name: "Majuli",                  lat: 26.94696,  lng: 94.16583, color: "#9B3A6E", glowColor: "rgba(155,58,110,0.6)" },
   { id: "sivasagar", name: "Sivasagar",               lat: 26.96728,  lng: 94.61907, color: "#1A5C8B", glowColor: "rgba(26,92,139,0.6)" },
 ]
