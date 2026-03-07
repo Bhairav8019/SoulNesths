@@ -891,7 +891,7 @@ export default function HomestayPage({ onLogoClick, loggedIn, onLogin, onLogout 
             {nestEscapes.map((e, i) => (
               <div key={i} onClick={() => setShowNestEscapes(true)}
                 className="bg-[#2a2a2a] border border-[#3a3a3a] rounded-2xl overflow-hidden hover:border-[#8B6914] transition cursor-pointer">
-                <div className="w-full h-40 bg-[#1C1C1C] flex items-center justify-center overflow-hidden">
+                <div className="w-full h-40 bg-gradient-to-b from-[#2C2C2C] to-[#1a1f1a] flex items-center justify-center overflow-hidden">
                   <img src={e.image} alt={e.title} className="w-full h-full object-contain" />
                 </div>
                 <div className="p-4">
