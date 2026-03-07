@@ -16,12 +16,23 @@ export default function SearchBar({ onSearch }) {
   // Get today's date in ISO format
   const getTodayDate = () => new Date().toISOString().split("T")[0]
 
+  // Calculate max guests from selected homestay or global max
+  const getMaxGuests = () => {
+    if (selectedSuggestion?.homestay) {
+      const totalCapacity = selectedSuggestion.homestay.rooms.reduce(
+        (sum, room) => sum + room.maxGuests,
+        0
+      )
+      return Math.min(totalCapacity, 14)
+    }
+    return 14 // Global max
+  }
+
   // Handle check-in date change with validation
   const handleCheckInChange = (value) => {
     const today = getTodayDate()
-    if (value < today) return // Prevent past dates
+    if (value < today) return
     setCheckIn(value)
-    // If check-out is set and before new check-in, reset it
     if (checkOut && checkOut < value) {
       setCheckOut("")
     }
@@ -29,9 +40,7 @@ export default function SearchBar({ onSearch }) {
 
   // Handle check-out date change with validation
   const handleCheckOutChange = (value) => {
-    // Can't set check-out before check-in
     if (checkIn && value < checkIn) return
-    // If no check-in set, require at least today + 1
     if (!checkIn) {
       const today = getTodayDate()
       if (value <= today) return
@@ -42,7 +51,6 @@ export default function SearchBar({ onSearch }) {
   const fetchSuggestions = async (q) => {
     if (!q || q.length < 2) { setSuggestions([]); return }
 
-    // Check local homestays first
     const localMatches = homestays.filter(h =>
       h.name.toLowerCase().includes(q.toLowerCase()) ||
       h.location.toLowerCase().includes(q.toLowerCase())
@@ -55,7 +63,6 @@ export default function SearchBar({ onSearch }) {
       homestay: h,
     }))
 
-    // Fetch from Mapbox geocoding
     try {
       const res = await fetch(
         `https://api.mapbox.com/geocoding/v5/mapbox.places/${encodeURIComponent(q)}.json?access_token=${MAPBOX_TOKEN}&proximity=94.188933,26.768666&country=IN&limit=4`
@@ -69,7 +76,6 @@ export default function SearchBar({ onSearch }) {
         isHomestay: false,
       }))
 
-      // Merge — homestays first
       setSuggestions([...localMatches, ...mapboxResults].slice(0, 6))
     } catch {
       setSuggestions(localMatches)
@@ -84,15 +90,28 @@ export default function SearchBar({ onSearch }) {
   }
 
   const handleSelect = (s) => {
-    // Just populate the search bar and remember the selection
-    // Don't navigate yet — wait for user to click Search button
     setQuery(s.name)
     setSelectedSuggestion(s)
     setSuggestions([])
+    // Reset guests if exceeds new homestay's capacity
+    if (guests && parseInt(guests) > getMaxGuests()) {
+      setGuests("")
+    }
+  }
+
+  const handleGuestChange = (e) => {
+    const val = e.target.value
+    if (!val) {
+      setGuests("")
+      return
+    }
+    const numVal = parseInt(val)
+    if (numVal <= getMaxGuests()) {
+      setGuests(val)
+    }
   }
 
   const handleSearch = () => {
-    // Perform the actual search — call onSearch with selected suggestion
     if (selectedSuggestion) {
       onSearch({
         query: selectedSuggestion.name,
@@ -103,7 +122,6 @@ export default function SearchBar({ onSearch }) {
         homestay: selectedSuggestion.homestay || null,
       })
     } else if (suggestions.length > 0) {
-      // Fallback: if no explicit selection but suggestions exist, use first one
       const s = suggestions[0]
       onSearch({
         query: s.name,
@@ -115,6 +133,8 @@ export default function SearchBar({ onSearch }) {
       })
     }
   }
+
+  const maxGuests = getMaxGuests()
 
   return (
     <div className="w-full max-w-3xl mx-auto px-4 relative">
@@ -156,10 +176,11 @@ export default function SearchBar({ onSearch }) {
 
         <div className="flex items-center gap-2 px-4 py-3 md:border-r border-[#3a3a3a]">
           <Users size={16} className="text-[#8B6914]" />
-          <input type="number" min="1" max="20" value={guests}
-            onChange={e => setGuests(e.target.value)}
+          <input type="number" min="1" max={maxGuests} value={guests}
+            onChange={handleGuestChange}
             placeholder="Guests"
             className="outline-none text-sm text-[#F8F5F0] placeholder-[#555] bg-transparent w-16" />
+          <span className="text-xs text-[#9a9a9a]">/ {maxGuests}</span>
         </div>
 
         <button onClick={handleSearch}

@@ -28,8 +28,8 @@ const LANDMARKS = [
   {
     id: "kaziranga",
     name: "Kaziranga National Park",
-    lat: 26.52506,
-    lng: 92.99185,
+    lat: 26.673,
+    lng: 93.35594,
     color: "#C8860A",
     glowColor: "rgba(200,134,10,0.6)",
   },
