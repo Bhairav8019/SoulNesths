@@ -439,10 +439,19 @@ export default function HomestayPage({ onLogoClick, loggedIn, onLogin, onLogout 
       )}
 
       <div className="pt-20 max-w-3xl mx-auto px-4 pb-24">
-        <button onClick={() => navigate("/")}
-          className="flex items-center gap-2 text-[#9a9a9a] hover:text-[#F8F5F0] transition mt-4 mb-6 text-sm">
-          <ArrowLeft size={16} /> Back to Homestays
-        </button>
+        <div className="flex items-center justify-between mt-4 mb-6">
+          <button onClick={() => navigate("/")}
+            className="flex items-center gap-2 text-[#9a9a9a] hover:text-[#F8F5F0] transition text-sm">
+            <ArrowLeft size={16} /> Back to Homestays
+          </button>
+          <button
+            onClick={() => navigate("/", { state: { triggerLocation: true } })}
+            className="flex items-center gap-2 text-xs px-3 py-1.5 rounded-full border transition font-medium"
+            style={{ color: "#3B82F6", borderColor: "rgba(59,130,246,0.5)", background: "rgba(59,130,246,0.07)" }}>
+            <MapPin size={12} />
+            Detect &amp; View on Map
+          </button>
+        </div>
 
         {/* Gallery */}
         <div className="relative w-full h-72 md:h-96 rounded-3xl overflow-hidden shadow-2xl">
