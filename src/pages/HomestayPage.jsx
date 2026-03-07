@@ -5,9 +5,14 @@ import { useWishlist } from "../context/WishlistContext"
 import {
   ArrowLeft, ChevronLeft, ChevronRight, MapPin, Star,
   Users, Calendar, Wifi, Car, Tv, Droplets,
-  UtensilsCrossed, BedDouble, Wind, Heart, X, User, Timer, CheckCircle2
+  UtensilsCrossed, BedDouble, Wind, Heart, X, User, Timer, CheckCircle2, Phone
 } from "lucide-react"
 import Navbar from "../components/Navbar"
+import {
+  fetchRoomAvailability,
+  checkAndRestoreExpiredRooms,
+  confirmBookingInFirestore,
+} from "../data/roomAvailability"
 
 const amenities = [
   { icon: <Wifi size={16} />, label: "Free WiFi" },
@@ -37,28 +42,10 @@ const reviews = [
   { name: "Rohit D.", rating: 4, date: "Dec 2025", comment: "Great location, cozy rooms and excellent WiFi. The balcony view in the 1 BHK is a bonus." },
 ]
 
-const nestEscapeDetails = {
-  "Hangout": {
-    title: "Hangout",
-    message: "Explore Jorhat and beyond at your own pace with our self-drive and chauffeur options. Perfect for couples and small groups.",
-    cta: "To know more, first log in. Then, after your successful booking, check the Bookings section in your user profile for available options and pricing."
-  },
-  "Chef on Demand": {
-    title: "Chef on Demand",
-    message: "Savor authentic Assamese cuisine and regional delicacies prepared fresh and delivered to your room. Available for breakfast, lunch, dinner, or special occasions.",
-    cta: "To know more, first log in. Then, after your successful booking, check the Bookings section in your user profile to browse menus and place orders."
-  },
-  "Orchestra & DJ": {
-    title: "Orchestra & DJ",
-    message: "Experience premium live entertainment with curated music performances and DJ nights. Perfect for celebrations and special evenings at Soul Nest.",
-    cta: "To know more, first log in. Then, after your successful booking, check the Bookings section in your user profile to reserve your entertainment experience."
-  }
-}
-
 const nestEscapes = [
-  { image: "/hangout.jpg", title: "Hangout", desc: "Hangout with us & Explore Jorhat and beyond.", tag: "On Request" },
-  { image: "/chefondemand.jpg", title: "Chef on Demand", desc: "Authentic Assamese cuisine and local delicacies delivered straight to your room.", tag: "On Order" },
-  { image: "/orchestraanddj.jpg", title: "Orchestra & DJ", desc: "Experience the vibe and jam to music with curated live performances and premium entertainment evenings.", tag: "On Vibe Demand" },
+  { icon: "🚙", title: "Car Rental", desc: "Explore Jorhat and beyond at your own pace. Self-drive and chauffeur options available.", tag: "On Request" },
+  { icon: "🍱", title: "Food Delivered", desc: "Authentic Assamese cuisine and local delicacies delivered straight to your room.", tag: "On Order" },
+  { icon: "🌿", title: "More Coming Soon", desc: "Curated local experiences, heritage tours, and more being added.", tag: "Soon" },
 ]
 
 // ── Core 72hr logic ───────────────────────────────────────────
@@ -68,8 +55,173 @@ function hoursUntilCheckIn(checkInStr) {
   return (checkInDate - new Date()) / 3600000
 }
 
+
+// ── Phone validation — Indian & international ─────────────────
+function validatePhone(raw) {
+  const cleaned = raw.replace(/[\s\-().]/g, "")
+  if (!cleaned) return false
+  if (/^(\+91|91|0)?[6-9]\d{9}$/.test(cleaned)) return true
+  if (/^\+\d{7,15}$/.test(cleaned)) return true
+  return false
+}
+
+// ── Guest Details Popup ───────────────────────────────────────
+function GuestDetailsPopup({ onClose, onConfirm }) {
+  const [name, setName]          = useState("")
+  const [contact, setContact]    = useState("")
+  const [whatsapp, setWhatsapp]  = useState("")
+  const [sameAsContact, setSame] = useState(false)
+  const [errors, setErrors]      = useState({})
+  const [touched, setTouched]    = useState({})
+
+  useEffect(() => {
+    if (sameAsContact) setWhatsapp(contact)
+  }, [sameAsContact, contact])
+
+  const validate = () => {
+    const e = {}
+    if (!name.trim()) e.name = "Name is required"
+    if (!contact.trim()) {
+      e.contact = "Contact number is required"
+    } else if (!validatePhone(contact)) {
+      e.contact = "Enter a valid Indian (+91) or international number"
+    }
+    if (whatsapp.trim() && !validatePhone(whatsapp)) {
+      e.whatsapp = "Enter a valid WhatsApp number"
+    }
+    return e
+  }
+
+  const handleConfirm = () => {
+    const e = validate()
+    if (Object.keys(e).length > 0) {
+      setErrors(e)
+      setTouched({ name: true, contact: true, whatsapp: true })
+      return
+    }
+    onConfirm({ name: name.trim(), contact: contact.trim(), whatsapp: whatsapp.trim() })
+  }
+
+  const fieldMeta = (key) => ({
+    borderStyle: touched[key] && errors[key]
+      ? { border: "1.5px solid #ef4444" }
+      : { border: "1.5px solid #3a3a3a" },
+    err: touched[key] ? errors[key] : null,
+    blur: () => setTouched(t => ({ ...t, [key]: true })),
+  })
+  const nm = fieldMeta("name")
+  const ct = fieldMeta("contact")
+  const wa = fieldMeta("whatsapp")
+
+  return (
+    <div className="fixed inset-0 z-50 flex items-end md:items-center justify-center px-4 pb-4 md:pb-0"
+      style={{ background: "rgba(0,0,0,0.80)", backdropFilter: "blur(8px)" }}>
+      <div className="bg-[#1C1C1C] border border-[#3a3a3a] rounded-3xl p-5 max-w-sm w-full shadow-2xl relative">
+        <button onClick={onClose} className="absolute top-4 right-4 text-[#9a9a9a] hover:text-white transition">
+          <X size={18} />
+        </button>
+        <div className="flex items-center gap-3 mb-4">
+          <div className="w-9 h-9 rounded-full bg-[#2D5A3D] flex items-center justify-center flex-shrink-0">
+            <User size={16} className="text-white" />
+          </div>
+          <div>
+            <h3 style={{ fontFamily: "'Playfair Display', serif" }}
+              className="text-[#F8F5F0] text-lg font-bold leading-tight">Guest Details</h3>
+            <p className="text-[#9a9a9a] text-xs">Required before confirming your booking</p>
+          </div>
+        </div>
+        <div className="w-full h-px bg-[#3a3a3a] mb-4" />
+        <div className="flex flex-col gap-4">
+
+          <div>
+            <label className="text-[#8B6914] text-xs font-medium flex items-center gap-1.5 mb-1.5">
+              <User size={10} />
+              Booking in the name of
+              <span className="text-red-400 font-bold">*</span>
+            </label>
+            <input type="text" value={name}
+              onChange={e => { setName(e.target.value); setErrors(ev => ({ ...ev, name: "" })) }}
+              onBlur={nm.blur}
+              placeholder="Full name of primary guest"
+              className="w-full bg-[#2a2a2a] text-[#F8F5F0] text-sm px-4 py-3 rounded-2xl outline-none placeholder-[#5a5a5a]"
+              style={nm.borderStyle} />
+            {nm.err && <p className="text-red-400 text-xs mt-1 ml-1">{nm.err}</p>}
+          </div>
+
+          <div>
+            <label className="text-[#8B6914] text-xs font-medium flex items-center gap-1.5 mb-1.5">
+              <Phone size={10} />
+              Contact number
+              <span className="text-red-400 font-bold">*</span>
+              <span className="text-[#5a5a5a] font-normal">&middot; Indian or international</span>
+            </label>
+            <input type="tel" value={contact}
+              onChange={e => {
+                setContact(e.target.value)
+                setErrors(ev => ({ ...ev, contact: "" }))
+                if (sameAsContact) setWhatsapp(e.target.value)
+              }}
+              onBlur={ct.blur}
+              placeholder="+91 98765 43210  or  +1 555 000 1234"
+              className="w-full bg-[#2a2a2a] text-[#F8F5F0] text-sm px-4 py-3 rounded-2xl outline-none placeholder-[#5a5a5a]"
+              style={ct.borderStyle} />
+            {ct.err && <p className="text-red-400 text-xs mt-1 ml-1">{ct.err}</p>}
+          </div>
+
+          <div>
+            <label className="text-[#8B6914] text-xs font-medium flex items-center gap-1.5 mb-1.5">
+              <span style={{ fontSize: 11 }}>💬</span>
+              WhatsApp number
+              <span className="text-[#5a5a5a] font-normal">&middot; optional</span>
+            </label>
+            <button type="button"
+              onClick={() => {
+                const next = !sameAsContact
+                setSame(next)
+                if (next) { setWhatsapp(contact); setErrors(ev => ({ ...ev, whatsapp: "" })) }
+                else setWhatsapp("")
+              }}
+              className="flex items-center gap-2 mb-2 group">
+              <div className="w-4 h-4 rounded flex items-center justify-center flex-shrink-0"
+                style={{
+                  background: sameAsContact ? "#2D5A3D" : "transparent",
+                  border: sameAsContact ? "1.5px solid #2D5A3D" : "1.5px solid #5a5a5a",
+                }}>
+                {sameAsContact && (
+                  <svg width="9" height="7" viewBox="0 0 9 7" fill="none">
+                    <path d="M1 3.5L3.5 6L8 1" stroke="white" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" />
+                  </svg>
+                )}
+              </div>
+              <span className="text-[#9a9a9a] text-xs group-hover:text-[#F8F5F0] transition">Same as contact number</span>
+            </button>
+            <input type="tel" value={whatsapp}
+              disabled={sameAsContact}
+              onChange={e => { setWhatsapp(e.target.value); setErrors(ev => ({ ...ev, whatsapp: "" })) }}
+              onBlur={wa.blur}
+              placeholder="+91 98765 43210"
+              className="w-full bg-[#2a2a2a] text-[#F8F5F0] text-sm px-4 py-3 rounded-2xl outline-none placeholder-[#5a5a5a]"
+              style={{ ...wa.borderStyle, opacity: sameAsContact ? 0.45 : 1, cursor: sameAsContact ? "not-allowed" : "text" }} />
+            {wa.err && <p className="text-red-400 text-xs mt-1 ml-1">{wa.err}</p>}
+          </div>
+
+        </div>
+        <div className="w-full h-px bg-[#3a3a3a] my-4" />
+        <p className="text-[#5a5a5a] text-xs text-center mb-4">
+          ✦ Details used only for booking confirmation &amp; owner contact
+        </p>
+        <button onClick={handleConfirm}
+          className="w-full bg-[#2D5A3D] text-white py-4 rounded-2xl font-semibold text-sm hover:bg-[#8B6914] transition shadow-lg"
+          style={{ fontFamily: "'Playfair Display', serif" }}>
+          Confirm Guest Details →
+        </button>
+      </div>
+    </div>
+  )
+}
+
 // ── Shared summary rows used in both popups ───────────────────
-function SummaryRows({ h, selectedRooms, checkIn, checkOut, guests, nights, showFee, scaledFee }) {
+function SummaryRows({ h, selectedRooms, checkIn, checkOut, guests, nights, showFee, scaledFee, guestDetails }) {
   const roomsSubtotal = selectedRooms.reduce((sum, r) => {
     const p = r.discountPrice ?? r.regularPrice
     return sum + p * nights
@@ -82,6 +234,18 @@ function SummaryRows({ h, selectedRooms, checkIn, checkOut, guests, nights, show
         <span style={{ fontFamily: "'Playfair Display', serif" }}
           className="text-[#F8F5F0] text-xs font-semibold text-right max-w-[55%]">{h.name}</span>
       </div>
+      {guestDetails?.name && (
+        <div className="flex justify-between">
+          <span className="text-[#9a9a9a] text-xs">Guest</span>
+          <span className="text-[#F8F5F0] text-xs font-medium">{guestDetails.name}</span>
+        </div>
+      )}
+      {guestDetails?.contact && (
+        <div className="flex justify-between">
+          <span className="text-[#9a9a9a] text-xs">Contact</span>
+          <span className="text-[#F8F5F0] text-xs">{guestDetails.contact}</span>
+        </div>
+      )}
       {/* Rooms — one line each */}
       {selectedRooms.map((r, i) => (
         <div key={r.id} className="flex justify-between">
@@ -157,7 +321,7 @@ function SummaryRows({ h, selectedRooms, checkIn, checkOut, guests, nights, show
 }
 
 // ── POPUP A — Platform fee + Razorpay (booking > 72hrs before check-in) ──
-function BookingConfirmPopupFee({ h, selectedRooms, scaledFee, checkIn, checkOut, guests, nights, onClose, onPay }) {
+function BookingConfirmPopupFee({ h, selectedRooms, scaledFee, checkIn, checkOut, guests, nights, guestDetails, onClose, onPay }) {
   const [seconds, setSeconds] = useState(600)
   useEffect(() => {
     const t = setInterval(() => {
@@ -189,7 +353,7 @@ function BookingConfirmPopupFee({ h, selectedRooms, scaledFee, checkIn, checkOut
         </p>
 
         <SummaryRows h={h} selectedRooms={selectedRooms} scaledFee={scaledFee} checkIn={checkIn} checkOut={checkOut}
-          guests={guests} nights={nights} showFee={true} />
+          guests={guests} nights={nights} showFee={true} guestDetails={guestDetails} />
 
         <div className="mt-3 bg-[#2D5A3D]/10 border border-[#2D5A3D]/30 rounded-xl px-3 py-2.5">
           <p className="text-[#2D5A3D] text-xs font-medium">🛡️ Full refund policy</p>
@@ -216,7 +380,7 @@ function BookingConfirmPopupFee({ h, selectedRooms, scaledFee, checkIn, checkOut
 }
 
 // ── POPUP B — Direct booking (within 72hrs of check-in) ──────
-function BookingConfirmPopupDirect({ h, selectedRooms, checkIn, checkOut, guests, nights, onClose, onConfirm }) {
+function BookingConfirmPopupDirect({ h, selectedRooms, checkIn, checkOut, guests, nights, guestDetails, onClose, onConfirm }) {
   const roomsSubtotal = selectedRooms.reduce((sum, r) => sum + (r.discountPrice ?? r.regularPrice) * nights, 0)
   return (
     <div className="fixed inset-0 z-50 flex items-end md:items-center justify-center px-4 pb-4 md:pb-0"
@@ -241,7 +405,7 @@ function BookingConfirmPopupDirect({ h, selectedRooms, checkIn, checkOut, guests
         </div>
 
         <SummaryRows h={h} selectedRooms={selectedRooms} checkIn={checkIn} checkOut={checkOut}
-          guests={guests} nights={nights} showFee={false} />
+          guests={guests} nights={nights} showFee={false} guestDetails={guestDetails} />
 
         <div className="mt-3 bg-[#8B6914]/10 border border-[#8B6914]/30 rounded-xl px-3 py-2.5">
           <p className="text-[#8B6914] text-xs font-medium">💰 Pay at homestay on arrival</p>
@@ -330,13 +494,54 @@ export default function HomestayPage({ onLogoClick, loggedIn, onLogin, onLogout 
   const [guests, setGuests] = useState(searchData.guests ? parseInt(searchData.guests) : 1)
 
   const hasSearchData = !!(checkIn || checkOut || (guests && guests > 1))
-  const [selectedRooms, setSelectedRooms] = useState([])   // array of room objects
+  const [selectedRooms, setSelectedRooms] = useState([])
   const [showLoginPrompt, setShowLoginPrompt] = useState(false)
   const [showFeePopup, setShowFeePopup] = useState(false)
   const [showDirectPopup, setShowDirectPopup] = useState(false)
   const [showNestEscapes, setShowNestEscapes] = useState(false)
   const [selectedEscape, setSelectedEscape] = useState(null)
   const { toggleWishlist, isWishlisted } = useWishlist()
+
+  // ── Date highlight — pulses amber when user taps Reserve without dates ──
+  const [highlightDates, setHighlightDates] = useState(false)
+
+  // ── Guest details flow ───────────────────────────────────────
+  const [showGuestPopup, setShowGuestPopup]  = useState(false)
+  const [pendingBookingType, setPendingType] = useState(null)   // "fee" | "direct"
+  const [guestDetails, setGuestDetails]      = useState(null)
+
+  // ── Live availability from Firestore ─────────────────────────
+  // Map<roomId, { booked, checkOutDate, bookingId }>
+  // Starts as empty map → rooms default available until Firestore responds.
+  // Phase 4 admin: this same map is what the admin dashboard reads/writes.
+  const [liveAvailability, setLiveAvailability] = useState(new Map())
+  const [availabilityLoading, setAvailabilityLoading] = useState(true)
+
+  useEffect(() => {
+    if (!h) return
+    const roomIds = h.rooms.map(r => r.id)
+    ;(async () => {
+      try {
+        // 1. Auto-restore any rooms whose checkout date has passed (00:00 today)
+        await checkAndRestoreExpiredRooms(h.id, roomIds)
+        // 2. Fetch fresh availability after potential restores
+        const availability = await fetchRoomAvailability(h.id, roomIds)
+        setLiveAvailability(availability)
+      } catch (err) {
+        // Firebase not yet configured or offline — fall back to static booked flag
+        console.warn("Firestore unavailable, falling back to static room data:", err.message)
+        const fallback = new Map()
+        h.rooms.forEach(r => fallback.set(r.id, { booked: r.booked ?? false, checkOutDate: null, bookingId: null }))
+        setLiveAvailability(fallback)
+      } finally {
+        setAvailabilityLoading(false)
+      }
+    })()
+  }, [h?.id])
+
+  useEffect(() => {
+    if (checkIn && checkOut) setHighlightDates(false)
+  }, [checkIn, checkOut])
 
   // ── Multi-room helpers ───────────────────────────────────────
   const primaryRoom = selectedRooms[0] || null
@@ -345,15 +550,17 @@ export default function HomestayPage({ onLogoClick, loggedIn, onLogin, onLogout 
 
   // ── Availability + conflict logic ────────────────────────────
   // A room is unavailable if:
-  //   1. It is already booked (room.booked === true), OR
-  //   2. It conflicts with a currently selected room
-  // Phase 4: room.booked will come from Firestore in real-time.
-  // The conflictsWith array and this exact logic stay the same.
+  //   1. Firestore says booked: true (live, cross-user), OR
+  //   2. Static fallback room.booked === true (pre-Firebase), OR
+  //   3. It conflicts with a currently selected room
+  // Phase 4 admin: flip booked in Firestore → reflects here in real-time
+  //   (swap fetchRoomAvailability for onSnapshot for instant updates).
   const unavailableRoomIds = new Set(
     h ? h.rooms
       .filter(r => {
-        if (r.booked) return true
-        // blocked if any selected room lists this room in its conflictsWith
+        const live = liveAvailability.get(r.id)
+        const isBooked = live ? live.booked : (r.booked ?? false)
+        if (isBooked) return true
         return selectedRooms.some(sel => sel.conflictsWith?.includes(r.id))
       })
       .map(r => r.id)
@@ -362,7 +569,16 @@ export default function HomestayPage({ onLogoClick, loggedIn, onLogin, onLogout 
 
   // Helper: why is this room unavailable? (for UI label)
   const unavailableReason = (room) => {
-    if (room.booked) return "Currently booked"
+    const live = liveAvailability.get(room.id)
+    const isBooked = live ? live.booked : (room.booked ?? false)
+    if (isBooked) {
+      if (live?.checkOutDate) {
+        const d = new Date(live.checkOutDate)
+        const label = d.toLocaleDateString("en-IN", { day: "2-digit", month: "short" })
+        return `Booked · Available from ${label}`
+      }
+      return "Currently booked"
+    }
     const blocker = selectedRooms.find(sel => sel.conflictsWith?.includes(room.id))
     if (blocker) return `Unavailable with ${blocker.name}`
     return "Unavailable"
@@ -394,6 +610,7 @@ export default function HomestayPage({ onLogoClick, loggedIn, onLogin, onLogout 
   const handleCheckInChange = (value) => {
     if (value < getTodayDate()) return
     setCheckIn(value)
+    setHighlightDates(false)
     if (checkOut && checkOut < value) setCheckOut("")
   }
 
@@ -401,6 +618,7 @@ export default function HomestayPage({ onLogoClick, loggedIn, onLogin, onLogout 
     if (checkIn && value < checkIn) return
     if (!checkIn && value <= getTodayDate()) return
     setCheckOut(value)
+    setHighlightDates(false)
   }
 
   if (!h) return (
@@ -432,55 +650,120 @@ export default function HomestayPage({ onLogoClick, loggedIn, onLogin, onLogout 
 
   const handleReserve = () => {
     if (!loggedIn) { setShowLoginPrompt(true); return }
-    if (isDirectMode) setShowDirectPopup(true)
+    if (!checkIn || !checkOut) {
+      setHighlightDates(true)
+      document.getElementById("booking-dates")?.scrollIntoView({ behavior: "smooth", block: "center" })
+      return
+    }
+    setPendingType(isDirectMode ? "direct" : "fee")
+    setShowGuestPopup(true)
+  }
+
+  const handleGuestConfirmed = (details) => {
+    setGuestDetails(details)
+    setShowGuestPopup(false)
+    if (pendingBookingType === "direct") setShowDirectPopup(true)
     else setShowFeePopup(true)
   }
 
-  const handlePay = () => {
-    setShowFeePopup(false)
-    alert("Redirecting to Razorpay... (Phase 4)")
+  // ── Shared post-confirm: write to Firestore + update local state ──
+  const finaliseBooking = async () => {
+    if (!checkIn || !checkOut) return
+    try {
+      const bookingId = await confirmBookingInFirestore({
+        homestayId:  h.id,
+        roomIds:     selectedRooms.map(r => r.id),
+        checkIn,
+        checkOut,
+        guests,
+        nights,
+        totalAmount: subtotal,
+        platformFee: scaledFee,
+      })
+      // Update local availability map immediately so UI reflects without refetch
+      setLiveAvailability(prev => {
+        const next = new Map(prev)
+        selectedRooms.forEach(r => {
+          next.set(r.id, { booked: true, checkOutDate: checkOut, bookingId })
+        })
+        return next
+      })
+      setSelectedRooms([])
+      return bookingId
+    } catch (err) {
+      console.error("Firestore booking write failed:", err.message)
+      return null
+    }
   }
 
-  const handleDirectConfirm = () => {
+  // Phase 4: Razorpay onSuccess callback calls finaliseBooking() then redirects
+  const handlePay = async () => {
+    setShowFeePopup(false)
+    // TODO Phase 4: open Razorpay, await payment success, then call finaliseBooking()
+    const bookingId = await finaliseBooking()
+    if (bookingId) {
+      alert(`Booking confirmed! ID: ${bookingId}\n\nRazorpay integration coming in Phase 4.`)
+    } else {
+      alert("Booking saved locally but Firestore write failed. Check connection.")
+    }
+  }
+
+  const handleDirectConfirm = async () => {
     setShowDirectPopup(false)
-    alert("Booking confirmed! Owner details sent to you shortly. (Phase 4)")
+    const bookingId = await finaliseBooking()
+    if (bookingId) {
+      alert(`Booking confirmed! ID: ${bookingId}\nOwner details will be shared via SMS, Email & WhatsApp shortly.`)
+    } else {
+      alert("Booking saved but Firestore write failed. Check connection.")
+    }
   }
 
   return (
     <div className="soul-bg min-h-screen bg-gradient-to-b from-[#1C1C1C] via-[#2C2C2C] to-[#1a1f1a]">
+      <style>{`
+        @keyframes datePulse {
+          0%, 100% { box-shadow: 0 0 0 4px rgba(139,105,20,0.18); }
+          50%       { box-shadow: 0 0 0 8px rgba(139,105,20,0.38); }
+        }
+      `}</style>
       <Navbar onLogoClick={onLogoClick} loggedIn={loggedIn} onLogin={onLogin} onLogout={onLogout} />
+
+      {showGuestPopup && (
+        <GuestDetailsPopup
+          onClose={() => { setShowGuestPopup(false); setPendingType(null) }}
+          onConfirm={handleGuestConfirmed}
+        />
+      )}
 
       {showLoginPrompt && <LoginPromptPopup onClose={() => setShowLoginPrompt(false)} />}
       {showFeePopup && selectedRooms.length > 0 && (
         <BookingConfirmPopupFee h={h} selectedRooms={selectedRooms} scaledFee={scaledFee}
           checkIn={checkIn} checkOut={checkOut} guests={guests} nights={nights}
+          guestDetails={guestDetails}
           onClose={() => setShowFeePopup(false)} onPay={handlePay} />
       )}
       {showDirectPopup && selectedRooms.length > 0 && (
         <BookingConfirmPopupDirect h={h} selectedRooms={selectedRooms}
           checkIn={checkIn} checkOut={checkOut} guests={guests} nights={nights}
+          guestDetails={guestDetails}
           onClose={() => setShowDirectPopup(false)} onConfirm={handleDirectConfirm} />
       )}
-      {showNestEscapes && selectedEscape && (
+      {showNestEscapes && (
         <div className="fixed inset-0 z-50 flex items-center justify-center px-4"
           style={{ background: "rgba(0,0,0,0.75)", backdropFilter: "blur(6px)" }}>
           <div className="bg-[#1C1C1C] border border-[#3a3a3a] rounded-3xl p-8 max-w-sm w-full shadow-2xl relative text-center">
-            <button onClick={() => { setShowNestEscapes(false); setSelectedEscape(null) }}
+            <button onClick={() => setShowNestEscapes(false)}
               className="absolute top-4 right-4 text-[#9a9a9a] hover:text-white transition">
               <X size={18} />
             </button>
+            <div className="text-5xl mb-4">🌿</div>
             <h3 style={{ fontFamily: "'Playfair Display', serif" }}
-              className="text-[#F8F5F0] text-2xl font-bold mb-3">{selectedEscape.title}</h3>
-            <p className="text-[#9a9a9a] text-sm mb-4 leading-relaxed">{selectedEscape.message}</p>
-
-            <div className="bg-[#8B6914]/10 border border-[#8B6914]/30 rounded-xl px-4 py-3 mb-6">
-              <p className="text-[#8B6914] text-xs font-semibold leading-relaxed">
-                {selectedEscape.cta}
-              </p>
-            </div>
-
+              className="text-[#F8F5F0] text-xl font-bold mb-2">Coming Soon</h3>
+            <p className="text-[#9a9a9a] text-sm mb-6">
+              Nest Escapes curated experiences are being handcrafted for you. Car rentals, local food delivery, heritage tours and more — arriving soon.
+            </p>
             <div className="w-16 h-1 rounded-full bg-gradient-to-r from-[#2D5A3D] to-[#8B6914] mx-auto mb-6" />
-            <button onClick={() => { setShowNestEscapes(false); setSelectedEscape(null) }}
+            <button onClick={() => setShowNestEscapes(false)}
               className="w-full bg-[#2D5A3D] text-white py-3 rounded-2xl text-sm font-medium hover:bg-[#8B6914] transition"
               style={{ fontFamily: "'Playfair Display', serif" }}>
               Got it
@@ -601,10 +884,32 @@ export default function HomestayPage({ onLogoClick, loggedIn, onLogin, onLogout 
           </div>
         )}
 
+        {/* Offer Banner */}
+        {new Date() <= new Date(h.offerExpiry) && (
+          <div className="bg-gradient-to-r from-[#2D5A3D] to-[#8B6914] rounded-2xl px-4 py-3 mb-6 flex items-center justify-between">
+            <div>
+              <p className="text-white font-semibold text-sm">🎉 Flat 30% off on Premium stays!</p>
+              <p className="text-white/70 text-xs mt-0.5">
+                ⏳ Offer valid till {new Date(h.offerExpiry).toLocaleDateString("en-IN", { day: "2-digit", month: "short", year: "numeric" })}
+              </p>
+            </div>
+            <span className="text-white text-2xl font-bold">30% off</span>
+          </div>
+        )}
+
         {/* Room Selection */}
         <div className="mb-6">
-          <h2 style={{ fontFamily: "'Playfair Display', serif" }}
-            className="text-[#F8F5F0] text-lg font-semibold mb-1">Choose Your Room</h2>
+          <div className="flex items-center gap-2 mb-1">
+            <h2 style={{ fontFamily: "'Playfair Display', serif" }}
+              className="text-[#F8F5F0] text-lg font-semibold">Choose Your Room</h2>
+            {availabilityLoading && (
+              <span className="text-xs text-[#9a9a9a] flex items-center gap-1">
+                <span className="w-3 h-3 border border-[#9a9a9a] border-t-transparent rounded-full inline-block"
+                  style={{ animation: "spin 0.8s linear infinite" }} />
+                Checking availability...
+              </span>
+            )}
+          </div>
           <p className="text-[#9a9a9a] text-xs mb-3">Tap to select · Tap again to deselect · Add multiple rooms for larger groups</p>
           <div className="flex flex-col gap-3">
             {h.rooms.map(room => {
@@ -649,7 +954,15 @@ export default function HomestayPage({ onLogoClick, loggedIn, onLogin, onLogout 
                       )}
                     </div>
                     <div className="text-right flex-shrink-0 ml-3">
-                      <p className={`font-bold text-base ${isUnavailable ? "text-[#4a4a4a]" : "text-[#F8F5F0]"}`}>₹{room.discountPrice ?? room.regularPrice}</p>
+                      {room.discount ? (
+                        <>
+                          <p className={`text-xs line-through ${isUnavailable ? "text-[#4a4a4a]" : "text-[#9a9a9a]"}`}>₹{room.regularPrice}</p>
+                          <p className={`font-bold text-base ${isUnavailable ? "text-[#4a4a4a]" : "text-[#2D5A3D]"}`}>₹{room.discountPrice}</p>
+                          {!isUnavailable && <span className="text-xs bg-[#2D5A3D] text-white px-2 py-0.5 rounded-full">30% off</span>}
+                        </>
+                      ) : (
+                        <p className={`font-bold text-base ${isUnavailable ? "text-[#4a4a4a]" : "text-[#F8F5F0]"}`}>₹{room.regularPrice}</p>
+                      )}
                       <p className={`text-xs ${isUnavailable ? "text-[#4a4a4a]" : "text-[#9a9a9a]"}`}>/ night</p>
                     </div>
                   </div>
@@ -733,20 +1046,28 @@ export default function HomestayPage({ onLogoClick, loggedIn, onLogin, onLogout 
               </div>
             )}
 
-            {/* Dates */}
-            <div className="grid grid-cols-2 gap-3 mb-4">
-              <div className="bg-[#1C1C1C] rounded-2xl px-4 py-3 border border-[#3a3a3a]">
+            {/* Dates — id for scroll-into-view on missing date */}
+            <div id="booking-dates" className="grid grid-cols-2 gap-3 mb-4">
+              <div className="bg-[#1C1C1C] rounded-2xl px-4 py-3 transition-all duration-200"
+                style={highlightDates && !checkIn
+                  ? { border: "2px solid #8B6914", boxShadow: "0 0 0 4px rgba(139,105,20,0.18)", animation: "datePulse 0.9s ease-in-out 3" }
+                  : { border: "1px solid #3a3a3a" }}>
                 <p className="text-[#8B6914] text-xs font-medium mb-1 flex items-center gap-1">
                   <Calendar size={11} /> Check-in
+                  {highlightDates && !checkIn && <span className="ml-1 font-bold animate-pulse">← required</span>}
                 </p>
                 <input type="date" value={checkIn}
                   onChange={e => handleCheckInChange(e.target.value)}
                   min={getTodayDate()}
                   className="bg-transparent text-[#F8F5F0] text-sm outline-none w-full" />
               </div>
-              <div className="bg-[#1C1C1C] rounded-2xl px-4 py-3 border border-[#3a3a3a]">
+              <div className="bg-[#1C1C1C] rounded-2xl px-4 py-3 transition-all duration-200"
+                style={highlightDates && !checkOut
+                  ? { border: "2px solid #8B6914", boxShadow: "0 0 0 4px rgba(139,105,20,0.18)", animation: "datePulse 0.9s ease-in-out 3" }
+                  : { border: "1px solid #3a3a3a" }}>
                 <p className="text-[#8B6914] text-xs font-medium mb-1 flex items-center gap-1">
                   <Calendar size={11} /> Check-out
+                  {highlightDates && !checkOut && <span className="ml-1 font-bold animate-pulse">← required</span>}
                 </p>
                 <input type="date" value={checkOut}
                   onChange={e => handleCheckOutChange(e.target.value)}
@@ -754,6 +1075,12 @@ export default function HomestayPage({ onLogoClick, loggedIn, onLogin, onLogout 
                   className="bg-transparent text-[#F8F5F0] text-sm outline-none w-full" />
               </div>
             </div>
+            {highlightDates && (!checkIn || !checkOut) && (
+              <div className="bg-[#8B6914]/10 border border-[#8B6914]/40 rounded-xl px-3 py-2 mb-4 flex items-center gap-2">
+                <Calendar size={13} className="text-[#8B6914] flex-shrink-0" />
+                <p className="text-[#8B6914] text-xs font-medium">Set both check-in and check-out dates to continue booking.</p>
+              </div>
+            )}
 
             {/* Guests — capped by combinedMaxGuests */}
             <div className="bg-[#1C1C1C] rounded-2xl px-4 py-3 border border-[#3a3a3a] mb-5">
@@ -891,17 +1218,13 @@ export default function HomestayPage({ onLogoClick, loggedIn, onLogin, onLogout 
           <p className="text-[#9a9a9a] text-xs mb-4">Handpicked add-ons to elevate your stay</p>
           <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
             {nestEscapes.map((e, i) => (
-              <div key={i} onClick={() => { setSelectedEscape(nestEscapeDetails[e.title]); setShowNestEscapes(true) }}
-                className="bg-[#2a2a2a] border border-[#3a3a3a] rounded-2xl overflow-hidden hover:border-[#8B6914] transition cursor-pointer">
-                <div className="w-full h-40 bg-gradient-to-b from-[#2C2C2C] to-[#1a1f1a] flex items-center justify-center overflow-hidden">
-                  <img src={e.image} alt={e.title} className="w-full h-full object-contain" />
-                </div>
-                <div className="p-4">
-                  <p style={{ fontFamily: "'Playfair Display', serif" }}
-                    className="text-[#F8F5F0] font-semibold text-sm mb-1">{e.title}</p>
-                  <p className="text-[#9a9a9a] text-xs mb-3 line-clamp-2">{e.desc}</p>
-                  <span className="text-xs bg-[#1C1C1C] text-[#8B6914] border border-[#8B6914]/30 px-2 py-0.5 rounded-full">{e.tag}</span>
-                </div>
+              <div key={i} onClick={() => setShowNestEscapes(true)}
+                className="bg-[#2a2a2a] border border-[#3a3a3a] rounded-2xl p-4 hover:border-[#8B6914] transition cursor-pointer">
+                <div className="text-3xl mb-2">{e.icon}</div>
+                <p style={{ fontFamily: "'Playfair Display', serif" }}
+                  className="text-[#F8F5F0] font-semibold text-sm mb-1">{e.title}</p>
+                <p className="text-[#9a9a9a] text-xs mb-3">{e.desc}</p>
+                <span className="text-xs bg-[#1C1C1C] text-[#8B6914] border border-[#8B6914]/30 px-2 py-0.5 rounded-full">{e.tag}</span>
               </div>
             ))}
           </div>
