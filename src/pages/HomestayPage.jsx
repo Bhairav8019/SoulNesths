@@ -37,6 +37,24 @@ const reviews = [
   { name: "Rohit D.", rating: 4, date: "Dec 2025", comment: "Great location, cozy rooms and excellent WiFi. The balcony view in the 1 BHK is a bonus." },
 ]
 
+const nestEscapeDetails = {
+  "Hangout": {
+    title: "Hangout",
+    message: "Explore Jorhat and beyond at your own pace with our self-drive and chauffeur options. Perfect for couples and small groups.",
+    cta: "To know more, first log in. Then, after your successful booking, check the Bookings section in your user profile for available options and pricing."
+  },
+  "Chef on Demand": {
+    title: "Chef on Demand",
+    message: "Savor authentic Assamese cuisine and regional delicacies prepared fresh and delivered to your room. Available for breakfast, lunch, dinner, or special occasions.",
+    cta: "To know more, first log in. Then, after your successful booking, check the Bookings section in your user profile to browse menus and place orders."
+  },
+  "Orchestra & DJ": {
+    title: "Orchestra & DJ",
+    message: "Experience premium live entertainment with curated music performances and DJ nights. Perfect for celebrations and special evenings at Soul Nest.",
+    cta: "To know more, first log in. Then, after your successful booking, check the Bookings section in your user profile to reserve your entertainment experience."
+  }
+}
+
 const nestEscapes = [
   { image: "/hangout.jpg", title: "Hangout", desc: "Hangout with us & Explore Jorhat and beyond.", tag: "On Request" },
   { image: "/chefondemand.jpg", title: "Chef on Demand", desc: "Authentic Assamese cuisine and local delicacies delivered straight to your room.", tag: "On Order" },
@@ -317,6 +335,7 @@ export default function HomestayPage({ onLogoClick, loggedIn, onLogin, onLogout 
   const [showFeePopup, setShowFeePopup] = useState(false)
   const [showDirectPopup, setShowDirectPopup] = useState(false)
   const [showNestEscapes, setShowNestEscapes] = useState(false)
+  const [selectedEscape, setSelectedEscape] = useState(null)
   const { toggleWishlist, isWishlisted } = useWishlist()
 
   // ── Multi-room helpers ───────────────────────────────────────
@@ -442,22 +461,26 @@ export default function HomestayPage({ onLogoClick, loggedIn, onLogin, onLogout 
           checkIn={checkIn} checkOut={checkOut} guests={guests} nights={nights}
           onClose={() => setShowDirectPopup(false)} onConfirm={handleDirectConfirm} />
       )}
-      {showNestEscapes && (
+      {showNestEscapes && selectedEscape && (
         <div className="fixed inset-0 z-50 flex items-center justify-center px-4"
           style={{ background: "rgba(0,0,0,0.75)", backdropFilter: "blur(6px)" }}>
           <div className="bg-[#1C1C1C] border border-[#3a3a3a] rounded-3xl p-8 max-w-sm w-full shadow-2xl relative text-center">
-            <button onClick={() => setShowNestEscapes(false)}
+            <button onClick={() => { setShowNestEscapes(false); setSelectedEscape(null) }}
               className="absolute top-4 right-4 text-[#9a9a9a] hover:text-white transition">
               <X size={18} />
             </button>
-            <div className="text-5xl mb-4">🌿</div>
             <h3 style={{ fontFamily: "'Playfair Display', serif" }}
-              className="text-[#F8F5F0] text-xl font-bold mb-2">Coming Soon</h3>
-            <p className="text-[#9a9a9a] text-sm mb-6">
-              Nest Escapes curated experiences are being handcrafted for you. Car rentals, local food delivery, heritage tours and more — arriving soon.
-            </p>
+              className="text-[#F8F5F0] text-2xl font-bold mb-3">{selectedEscape.title}</h3>
+            <p className="text-[#9a9a9a] text-sm mb-4 leading-relaxed">{selectedEscape.message}</p>
+
+            <div className="bg-[#8B6914]/10 border border-[#8B6914]/30 rounded-xl px-4 py-3 mb-6">
+              <p className="text-[#8B6914] text-xs font-semibold leading-relaxed">
+                {selectedEscape.cta}
+              </p>
+            </div>
+
             <div className="w-16 h-1 rounded-full bg-gradient-to-r from-[#2D5A3D] to-[#8B6914] mx-auto mb-6" />
-            <button onClick={() => setShowNestEscapes(false)}
+            <button onClick={() => { setShowNestEscapes(false); setSelectedEscape(null) }}
               className="w-full bg-[#2D5A3D] text-white py-3 rounded-2xl text-sm font-medium hover:bg-[#8B6914] transition"
               style={{ fontFamily: "'Playfair Display', serif" }}>
               Got it
@@ -889,7 +912,7 @@ export default function HomestayPage({ onLogoClick, loggedIn, onLogin, onLogout 
           <p className="text-[#9a9a9a] text-xs mb-4">Handpicked add-ons to elevate your stay</p>
           <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
             {nestEscapes.map((e, i) => (
-              <div key={i} onClick={() => setShowNestEscapes(true)}
+              <div key={i} onClick={() => { setSelectedEscape(nestEscapeDetails[e.title]); setShowNestEscapes(true) }}
                 className="bg-[#2a2a2a] border border-[#3a3a3a] rounded-2xl overflow-hidden hover:border-[#8B6914] transition cursor-pointer">
                 <div className="w-full h-40 bg-gradient-to-b from-[#2C2C2C] to-[#1a1f1a] flex items-center justify-center overflow-hidden">
                   <img src={e.image} alt={e.title} className="w-full h-full object-contain" />
