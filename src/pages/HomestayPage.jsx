@@ -322,16 +322,44 @@ export default function HomestayPage({ onLogoClick, loggedIn, onLogin, onLogout 
   // ── Multi-room helpers ───────────────────────────────────────
   const primaryRoom = selectedRooms[0] || null
   const combinedMaxGuests = selectedRooms.reduce((sum, r) => sum + r.maxGuests, 0)
-  // Rooms not yet selected (available to add)
-  const availableToAdd = h ? h.rooms.filter(r => !selectedRooms.find(s => s.id === r.id)) : []
-  // Total rooms capacity cap from property
   const atPropertyCap = h ? selectedRooms.reduce((sum, r) => sum + r.maxGuests, 0) >= h.totalMaxGuests : false
 
+  // ── Availability + conflict logic ────────────────────────────
+  // A room is unavailable if:
+  //   1. It is already booked (room.booked === true), OR
+  //   2. It conflicts with a currently selected room
+  // Phase 4: room.booked will come from Firestore in real-time.
+  // The conflictsWith array and this exact logic stay the same.
+  const unavailableRoomIds = new Set(
+    h ? h.rooms
+      .filter(r => {
+        if (r.booked) return true
+        // blocked if any selected room lists this room in its conflictsWith
+        return selectedRooms.some(sel => sel.conflictsWith?.includes(r.id))
+      })
+      .map(r => r.id)
+    : []
+  )
+
+  // Helper: why is this room unavailable? (for UI label)
+  const unavailableReason = (room) => {
+    if (room.booked) return "Currently booked"
+    const blocker = selectedRooms.find(sel => sel.conflictsWith?.includes(room.id))
+    if (blocker) return `Unavailable with ${blocker.name}`
+    return "Unavailable"
+  }
+
+  // Rooms not yet selected AND not unavailable (for "Add another room" panel)
+  const availableToAdd = h
+    ? h.rooms.filter(r => !selectedRooms.find(s => s.id === r.id) && !unavailableRoomIds.has(r.id))
+    : []
+
   const toggleRoom = (room) => {
+    // Block if unavailable
+    if (unavailableRoomIds.has(room.id)) return
     setSelectedRooms(prev => {
       const exists = prev.find(r => r.id === room.id)
       if (exists) {
-        // Remove room — also clamp guests to new combined cap
         const next = prev.filter(r => r.id !== room.id)
         const newCap = next.reduce((sum, r) => sum + r.maxGuests, 0)
         setGuests(g => Math.min(g, Math.max(1, newCap)))
@@ -570,41 +598,60 @@ export default function HomestayPage({ onLogoClick, loggedIn, onLogin, onLogout 
           <p className="text-[#9a9a9a] text-xs mb-3">Tap to select · Tap again to deselect · Add multiple rooms for larger groups</p>
           <div className="flex flex-col gap-3">
             {h.rooms.map(room => {
-              const isSelected = !!selectedRooms.find(r => r.id === room.id)
-              const isPrimary = selectedRooms[0]?.id === room.id
+              const isSelected    = !!selectedRooms.find(r => r.id === room.id)
+              const isPrimary     = selectedRooms[0]?.id === room.id
+              const isUnavailable = unavailableRoomIds.has(room.id)
+              const reason        = isUnavailable ? unavailableReason(room) : null
+
               return (
-                <button key={room.id} onClick={() => toggleRoom(room)}
-                  className={`w-full text-left bg-[#2a2a2a] rounded-2xl p-4 border-2 transition ${
-                    isSelected ? "border-[#8B6914]" : "border-[#3a3a3a] hover:border-[#2D5A3D]"
+                <div
+                  key={room.id}
+                  onClick={() => !isUnavailable && toggleRoom(room)}
+                  className={`w-full text-left rounded-2xl p-4 border-2 transition ${
+                    isUnavailable
+                      ? "border-[#2a2a2a] bg-[#1e1e1e] cursor-not-allowed opacity-50"
+                      : isSelected
+                      ? "bg-[#2a2a2a] border-[#8B6914] cursor-pointer"
+                      : "bg-[#2a2a2a] border-[#3a3a3a] hover:border-[#2D5A3D] cursor-pointer"
                   }`}>
                   <div className="flex items-center justify-between">
-                    <div>
+                    <div className="flex-1 min-w-0">
                       <div className="flex items-center gap-2 flex-wrap">
                         <p style={{ fontFamily: "'Playfair Display', serif" }}
-                          className="text-[#F8F5F0] font-semibold text-sm">{room.name}</p>
-                        <span className="text-[#9a9a9a] text-xs flex items-center gap-1">
+                          className={`font-semibold text-sm ${isUnavailable ? "text-[#5a5a5a]" : "text-[#F8F5F0]"}`}>
+                          {room.name}
+                        </p>
+                        <span className={`text-xs flex items-center gap-1 ${isUnavailable ? "text-[#4a4a4a]" : "text-[#9a9a9a]"}`}>
                           <Users size={10} /> Max {room.maxGuests}
                         </span>
+                        {isUnavailable && (
+                          <span className="text-xs px-2 py-0.5 rounded-full font-medium"
+                            style={{ background: "rgba(239,68,68,0.12)", color: "#ef4444", border: "1px solid rgba(239,68,68,0.2)" }}>
+                            {reason}
+                          </span>
+                        )}
                       </div>
-                      <p className="text-[#9a9a9a] text-xs mt-0.5">{room.description}</p>
-                      {room.id === "premium-1bhk" && (
+                      <p className={`text-xs mt-0.5 ${isUnavailable ? "text-[#4a4a4a]" : "text-[#9a9a9a]"}`}>
+                        {room.description}
+                      </p>
+                      {room.id === "premium-1bhk" && !isUnavailable && (
                         <span className="text-xs text-[#8B6914] mt-1 inline-block">✦ Includes private balcony</span>
                       )}
                     </div>
                     <div className="text-right flex-shrink-0 ml-3">
                       {room.discount ? (
                         <>
-                          <p className="text-[#9a9a9a] text-xs line-through">₹{room.regularPrice}</p>
-                          <p className="text-[#2D5A3D] font-bold text-base">₹{room.discountPrice}</p>
-                          <span className="text-xs bg-[#2D5A3D] text-white px-2 py-0.5 rounded-full">30% off</span>
+                          <p className={`text-xs line-through ${isUnavailable ? "text-[#4a4a4a]" : "text-[#9a9a9a]"}`}>₹{room.regularPrice}</p>
+                          <p className={`font-bold text-base ${isUnavailable ? "text-[#4a4a4a]" : "text-[#2D5A3D]"}`}>₹{room.discountPrice}</p>
+                          {!isUnavailable && <span className="text-xs bg-[#2D5A3D] text-white px-2 py-0.5 rounded-full">30% off</span>}
                         </>
                       ) : (
-                        <p className="text-[#F8F5F0] font-bold text-base">₹{room.regularPrice}</p>
+                        <p className={`font-bold text-base ${isUnavailable ? "text-[#4a4a4a]" : "text-[#F8F5F0]"}`}>₹{room.regularPrice}</p>
                       )}
-                      <p className="text-[#9a9a9a] text-xs">/ night</p>
+                      <p className={`text-xs ${isUnavailable ? "text-[#4a4a4a]" : "text-[#9a9a9a]"}`}>/ night</p>
                     </div>
                   </div>
-                  {isSelected && (
+                  {isSelected && !isUnavailable && (
                     <div className="mt-2 flex items-center gap-1">
                       <div className="w-2 h-2 rounded-full bg-[#8B6914]" />
                       <span className="text-[#8B6914] text-xs font-medium">
@@ -612,7 +659,7 @@ export default function HomestayPage({ onLogoClick, loggedIn, onLogin, onLogout 
                       </span>
                     </div>
                   )}
-                </button>
+                </div>
               )
             })}
           </div>
