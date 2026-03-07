@@ -23,9 +23,9 @@ export default function SearchBar({ onSearch }) {
         (sum, room) => sum + room.maxGuests,
         0
       )
-      return Math.min(totalCapacity, 14)
+      return Math.min(totalCapacity, 11)
     }
-    return 14 // Global max
+    return 11 // Global max
   }
 
   // Handle check-in date change with validation
