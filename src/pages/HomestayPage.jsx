@@ -649,15 +649,7 @@ export default function HomestayPage({ onLogoClick, loggedIn, onLogin, onLogout 
                       )}
                     </div>
                     <div className="text-right flex-shrink-0 ml-3">
-                      {room.discount ? (
-                        <>
-                          <p className={`text-xs line-through ${isUnavailable ? "text-[#4a4a4a]" : "text-[#9a9a9a]"}`}>₹{room.regularPrice}</p>
-                          <p className={`font-bold text-base ${isUnavailable ? "text-[#4a4a4a]" : "text-[#2D5A3D]"}`}>₹{room.discountPrice}</p>
-                          {!isUnavailable && <span className="text-xs bg-[#2D5A3D] text-white px-2 py-0.5 rounded-full">30% off</span>}
-                        </>
-                      ) : (
-                        <p className={`font-bold text-base ${isUnavailable ? "text-[#4a4a4a]" : "text-[#F8F5F0]"}`}>₹{room.regularPrice}</p>
-                      )}
+                      <p className={`font-bold text-base ${isUnavailable ? "text-[#4a4a4a]" : "text-[#F8F5F0]"}`}>₹{room.discountPrice ?? room.regularPrice}</p>
                       <p className={`text-xs ${isUnavailable ? "text-[#4a4a4a]" : "text-[#9a9a9a]"}`}>/ night</p>
                     </div>
                   </div>
