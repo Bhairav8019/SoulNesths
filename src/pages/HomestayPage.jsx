@@ -38,7 +38,7 @@ const reviews = [
 ]
 
 const nestEscapes = [
-  { image: "/hangout.jpg", title: "Hangout", desc: "Hangout with us & Explore Jorhat and beyond at your own pace. Self-drive and chauffeur options available.", tag: "On Request" },
+  { image: "/hangout.jpg", title: "Hangout", desc: "Hangout with us & Explore Jorhat and beyond.", tag: "On Request" },
   { image: "/chefondemand.jpg", title: "Chef on Demand", desc: "Authentic Assamese cuisine and local delicacies delivered straight to your room.", tag: "On Order" },
   { image: "/orchestraanddj.jpg", title: "Orchestra & DJ", desc: "Experience the vibe and jam to music with curated live performances and premium entertainment evenings.", tag: "On Vibe Demand" },
 ]
@@ -892,12 +892,12 @@ export default function HomestayPage({ onLogoClick, loggedIn, onLogin, onLogout 
               <div key={i} onClick={() => setShowNestEscapes(true)}
                 className="bg-[#2a2a2a] border border-[#3a3a3a] rounded-2xl overflow-hidden hover:border-[#8B6914] transition cursor-pointer">
                 <div className="w-full h-40 bg-[#1C1C1C] flex items-center justify-center overflow-hidden">
-                  <img src={e.image} alt={e.title} className="w-full h-full object-cover" />
+                  <img src={e.image} alt={e.title} className="w-full h-full object-contain" />
                 </div>
                 <div className="p-4">
                   <p style={{ fontFamily: "'Playfair Display', serif" }}
                     className="text-[#F8F5F0] font-semibold text-sm mb-1">{e.title}</p>
-                  <p className="text-[#9a9a9a] text-xs mb-3">{e.desc}</p>
+                  <p className="text-[#9a9a9a] text-xs mb-3 line-clamp-2">{e.desc}</p>
                   <span className="text-xs bg-[#1C1C1C] text-[#8B6914] border border-[#8B6914]/30 px-2 py-0.5 rounded-full">{e.tag}</span>
                 </div>
               </div>
