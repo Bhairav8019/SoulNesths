@@ -370,15 +370,8 @@ export default function HomePage({ onLogoClick, loggedIn, onLogin, onLogout }) {
 
       <div className="pt-20 flex flex-col gap-4">
 
-        {/* ── OFFER BANNER — above search bar ── */}
-        {activeOffers.length > 0 && (
-          <div className="pt-4">
-            <OfferBanner offers={activeOffers} />
-          </div>
-        )}
-
         {/* Search bar */}
-        <div className={activeOffers.length > 0 ? "" : "pt-4"}>
+        <div className="pt-4">
           <SearchBar onSearch={handleSearch} />
         </div>
 

@@ -601,19 +601,6 @@ export default function HomestayPage({ onLogoClick, loggedIn, onLogin, onLogout 
           </div>
         )}
 
-        {/* Offer Banner */}
-        {new Date() <= new Date(h.offerExpiry) && (
-          <div className="bg-gradient-to-r from-[#2D5A3D] to-[#8B6914] rounded-2xl px-4 py-3 mb-6 flex items-center justify-between">
-            <div>
-              <p className="text-white font-semibold text-sm">🎉 Flat 30% off on Premium stays!</p>
-              <p className="text-white/70 text-xs mt-0.5">
-                ⏳ Offer valid till {new Date(h.offerExpiry).toLocaleDateString("en-IN", { day: "2-digit", month: "short", year: "numeric" })}
-              </p>
-            </div>
-            <span className="text-white text-2xl font-bold">30% off</span>
-          </div>
-        )}
-
         {/* Room Selection */}
         <div className="mb-6">
           <h2 style={{ fontFamily: "'Playfair Display', serif" }}
