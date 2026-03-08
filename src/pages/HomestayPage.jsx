@@ -1223,13 +1223,13 @@ export default function HomestayPage({ onLogoClick }) {
               <div key={i} onClick={() => { setSelectedEscape(nestEscapeDetails[e.title]); setShowNestEscapes(true) }}
                 className="border border-[#3a3a3a] rounded-2xl overflow-hidden hover:border-[#8B6914] transition cursor-pointer"
                 style={{ background: "transparent" }}>
-                <div className="w-full h-48 overflow-hidden"
-                  style={{ background: "transparent" }}>
+                <div className="w-full h-48 flex items-center justify-center overflow-hidden"
+                  style={{ background: "#1C1C1C" }}>
                   <img
                     src={e.image}
                     alt={e.title}
-                    className="w-full h-full object-cover"
-                    style={{ mixBlendMode: "screen", filter: "brightness(0.92) contrast(1.05)" }}
+                    className="w-full h-full object-contain"
+                    style={{ filter: "brightness(0.95) contrast(1.02)" }}
                   />
                 </div>
                 <div className="px-4 py-3" style={{ background: "rgba(42,42,42,0.6)" }}>
