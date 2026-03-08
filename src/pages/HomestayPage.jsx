@@ -887,12 +887,6 @@ export default function HomestayPage({ onLogoClick }) {
           </div>
         )}
 
-        </p>
-            </div>
-            <span className="text-white text-2xl font-bold">30% off</span>
-          </div>
-        )}
-
         {/* Room Selection */}
         <div className="mb-6">
           <div className="flex items-center gap-2 mb-1">
