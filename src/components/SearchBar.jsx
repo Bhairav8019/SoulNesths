@@ -180,7 +180,6 @@ export default function SearchBar({ onSearch }) {
             onChange={handleGuestChange}
             placeholder="Guests"
             className="outline-none text-sm text-[#F8F5F0] placeholder-[#555] bg-transparent w-16" />
-          <span className="text-xs text-[#9a9a9a]">/ {maxGuests}</span>
         </div>
 
         <button onClick={handleSearch}
