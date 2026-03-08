@@ -8,6 +8,7 @@ import {
   UtensilsCrossed, BedDouble, Wind, Heart, X, User, Timer, CheckCircle2, Phone
 } from "lucide-react"
 import Navbar from "../components/Navbar"
+import { useAuth } from "../context/AuthContext"
 import {
   fetchRoomAvailability,
   checkAndRestoreExpiredRooms,
@@ -471,7 +472,9 @@ function LoginPromptPopup({ onClose }) {
 }
 
 // ── Main Page ─────────────────────────────────────────────────
-export default function HomestayPage({ onLogoClick, loggedIn, onLogin, onLogout }) {
+export default function HomestayPage({ onLogoClick }) {
+  const { currentUser, openLogin } = useAuth()
+  const loggedIn = !!currentUser
   const { id } = useParams()
   const navigate = useNavigate()
   const location = useLocation()
@@ -726,7 +729,7 @@ export default function HomestayPage({ onLogoClick, loggedIn, onLogin, onLogout 
           50%       { box-shadow: 0 0 0 8px rgba(139,105,20,0.38); }
         }
       `}</style>
-      <Navbar onLogoClick={onLogoClick} loggedIn={loggedIn} onLogin={onLogin} onLogout={onLogout} />
+      <Navbar onLogoClick={onLogoClick} />
 
       {showGuestPopup && (
         <GuestDetailsPopup
@@ -735,7 +738,7 @@ export default function HomestayPage({ onLogoClick, loggedIn, onLogin, onLogout 
         />
       )}
 
-      {showLoginPrompt && <LoginPromptPopup onClose={() => setShowLoginPrompt(false)} />}
+      {showLoginPrompt && <LoginPromptPopup onClose={() => { setShowLoginPrompt(false); openLogin() }} />}
       {showFeePopup && selectedRooms.length > 0 && (
         <BookingConfirmPopupFee h={h} selectedRooms={selectedRooms} scaledFee={scaledFee}
           checkIn={checkIn} checkOut={checkOut} guests={guests} nights={nights}

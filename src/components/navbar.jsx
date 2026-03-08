@@ -1,13 +1,17 @@
+// src/components/Navbar.jsx
 import { Heart, User, LogIn, LogOut, CalendarCheck, Images } from "lucide-react"
-import { useState } from "react"
-import { useNavigate } from "react-router-dom"
-import { useWishlist } from "../context/WishlistContext"
+import { useState }       from "react"
+import { useNavigate }    from "react-router-dom"
+import { useWishlist }    from "../context/WishlistContext"
+import { useAuth }        from "../context/AuthContext"
 
-export default function Navbar({ onLogoClick, loggedIn, onLogin, onLogout }) {
+export default function Navbar({ onLogoClick }) {
   const [userOpen, setUserOpen] = useState(false)
-  const navigate = useNavigate()
-  const { wishlist } = useWishlist()
+  const navigate                = useNavigate()
+  const { wishlist }            = useWishlist()
+  const { currentUser, openLogin, logout } = useAuth()
 
+  const loggedIn    = !!currentUser
   const hasWishlist = wishlist.length > 0
 
   return (
@@ -21,7 +25,7 @@ export default function Navbar({ onLogoClick, loggedIn, onLogin, onLogout }) {
 
       <div className="flex items-center gap-4 relative">
 
-        {/* Wishlist button */}
+        {/* Wishlist */}
         <button
           onClick={() => navigate("/wishlist")}
           style={{ transition: "color 0.3s ease, transform 0.2s ease" }}
@@ -35,17 +39,17 @@ export default function Navbar({ onLogoClick, loggedIn, onLogin, onLogout }) {
           )}
         </button>
 
-        {/* User button */}
+        {/* User icon */}
         <button onClick={() => setUserOpen(!userOpen)}
           className={`w-9 h-9 rounded-full flex items-center justify-center text-white transition
             ${loggedIn ? "bg-[#2D5A3D] hover:bg-[#8B6914]" : "bg-[#3a3a3a] hover:bg-[#2D5A3D]"}`}>
           <User size={16} />
         </button>
 
+        {/* Dropdown */}
         {userOpen && (
           <div className="absolute right-0 top-12 bg-[#2a2a2a] shadow-xl rounded-2xl w-48 overflow-hidden border border-[#3a3a3a]">
 
-            {/* Login / Bookings — always shown */}
             {loggedIn ? (
               <button
                 onClick={() => { navigate("/bookings"); setUserOpen(false) }}
@@ -54,16 +58,14 @@ export default function Navbar({ onLogoClick, loggedIn, onLogin, onLogout }) {
               </button>
             ) : (
               <button
-                onClick={() => { if (onLogin) onLogin(); setUserOpen(false) }}
+                onClick={() => { openLogin(); setUserOpen(false) }}
                 className="w-full text-left px-4 py-3 text-sm text-[#F8F5F0] hover:bg-[#3a3a3a] transition flex items-center gap-2">
                 <LogIn size={15} className="text-[#2D5A3D]" /> Login
               </button>
             )}
 
-            {/* Divider */}
             <div className="h-px bg-[#3a3a3a] mx-3" />
 
-            {/* Moments — visible to everyone */}
             <button
               onClick={() => { navigate("/moments"); setUserOpen(false) }}
               className="w-full text-left px-4 py-3 text-sm text-[#F8F5F0] hover:bg-[#3a3a3a] transition flex items-center gap-2">
@@ -72,12 +74,11 @@ export default function Navbar({ onLogoClick, loggedIn, onLogin, onLogout }) {
               <span className="ml-auto text-[10px] text-[#8B6914] border border-[#8B6914]/40 px-1.5 py-0.5 rounded-full tracking-wide">NEW</span>
             </button>
 
-            {/* Divider + Logout (only when logged in) */}
             {loggedIn && (
               <>
                 <div className="h-px bg-[#3a3a3a] mx-3" />
                 <button
-                  onClick={() => { if (onLogout) onLogout(); setUserOpen(false) }}
+                  onClick={() => { logout(); setUserOpen(false) }}
                   className="w-full text-left px-4 py-3 text-sm text-red-400 hover:bg-[#3a3a3a] transition flex items-center gap-2">
                   <LogOut size={15} /> Logout
                 </button>

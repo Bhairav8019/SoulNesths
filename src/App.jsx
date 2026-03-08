@@ -1,18 +1,20 @@
-import { useState } from "react"
-import { Routes, Route } from "react-router-dom"
-import LoadingScreen from "./components/LoadingScreen"
-import HomePage from "./pages/HomePage"
-import HomestayPage from "./pages/HomestayPage"
-import WishlistPage from "./pages/WishlistPage"
-import MomentsPage from "./pages/MomentsPage"
+// src/App.jsx
+import { useState }        from "react"
+import { Routes, Route }   from "react-router-dom"
+import { AuthProvider, useAuth } from "./context/AuthContext"
+import LoginModal          from "./components/LoginModal"
+import LoadingScreen       from "./components/LoadingScreen"
+import HomePage            from "./pages/HomePage"
+import HomestayPage        from "./pages/HomestayPage"
+import WishlistPage        from "./pages/WishlistPage"
+import MomentsPage         from "./pages/MomentsPage"
 
-export default function App() {
+// ── Inner app — has access to AuthContext ─────────────────────
+function AppInner() {
   const [loading, setLoading] = useState(true)
-  const [loggedIn, setLoggedIn] = useState(false)
+  const { loginOpen }         = useAuth()
 
   const handleLogoClick = () => setLoading(true)
-  const handleLogin = () => setLoggedIn(true)
-  const handleLogout = () => setLoggedIn(false)
 
   if (loading) return (
     <LoadingScreen onDone={() => {
@@ -22,39 +24,28 @@ export default function App() {
   )
 
   return (
-    <Routes>
-      <Route path="/" element={
-        <HomePage
-          onLogoClick={handleLogoClick}
-          loggedIn={loggedIn}
-          onLogin={handleLogin}
-          onLogout={handleLogout}
-        />}
-      />
-      <Route path="/homestay/:id" element={
-        <HomestayPage
-          onLogoClick={handleLogoClick}
-          loggedIn={loggedIn}
-          onLogin={handleLogin}
-          onLogout={handleLogout}
-        />}
-      />
-      <Route path="/wishlist" element={
-        <WishlistPage
-          onLogoClick={handleLogoClick}
-          loggedIn={loggedIn}
-          onLogin={handleLogin}
-          onLogout={handleLogout}
-        />}
-      />
-      <Route path="/moments" element={
-        <MomentsPage
-          onLogoClick={handleLogoClick}
-          loggedIn={loggedIn}
-          onLogin={handleLogin}
-          onLogout={handleLogout}
-        />}
-      />
-    </Routes>
+    <>
+      {/* LoginModal mounts at root so any page can trigger it */}
+      {loginOpen && <LoginModal />}
+
+      <Routes>
+        <Route path="/"              element={<HomePage     onLogoClick={handleLogoClick} />} />
+        <Route path="/homestay/:id"  element={<HomestayPage onLogoClick={handleLogoClick} />} />
+        <Route path="/wishlist"      element={<WishlistPage onLogoClick={handleLogoClick} />} />
+        <Route path="/moments"       element={<MomentsPage  onLogoClick={handleLogoClick} />} />
+        {/* Phase 4 routes — pages to be built next */}
+        <Route path="/bookings"      element={<div className="min-h-screen bg-[#1C1C1C] flex items-center justify-center text-[#F8F5F0]">Bookings page coming soon</div>} />
+        <Route path="/admin"         element={<div className="min-h-screen bg-[#1C1C1C] flex items-center justify-center text-[#F8F5F0]">Admin dashboard coming soon</div>} />
+      </Routes>
+    </>
+  )
+}
+
+// ── Root — wraps everything in AuthProvider ───────────────────
+export default function App() {
+  return (
+    <AuthProvider>
+      <AppInner />
+    </AuthProvider>
   )
 }

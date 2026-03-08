@@ -2,6 +2,7 @@ import { useState, useEffect, useRef } from "react"
 import { useNavigate } from "react-router-dom"
 import { ArrowLeft, ChevronLeft, ChevronRight, Camera, Upload, Sparkles } from "lucide-react"
 import Navbar from "../components/Navbar"
+import { useAuth } from "../context/AuthContext"
 
 // ─── ADD YOUR CURATED IMAGES HERE ───────────────────────────────────────────
 // Drop images into /public/moments/ and list them below
@@ -16,7 +17,9 @@ const FEATURED_MOMENTS = [
 // Replace with your WhatsApp number (international format, no + or spaces)
 const WHATSAPP_NUMBER = "917035464202"
 
-export default function MomentsPage({ onLogoClick, loggedIn }) {
+export default function MomentsPage({ onLogoClick }) {
+  const { currentUser } = useAuth()
+  const loggedIn = !!currentUser
   const navigate = useNavigate()
   const [current, setCurrent] = useState(0)
   const [animating, setAnimating] = useState(false)
@@ -73,7 +76,7 @@ export default function MomentsPage({ onLogoClick, loggedIn }) {
 
   return (
     <div className="min-h-screen bg-gradient-to-b from-[#0d0d0d] via-[#111410] to-[#0d0d0d]">
-      <Navbar onLogoClick={onLogoClick} loggedIn={loggedIn} />
+      <Navbar onLogoClick={onLogoClick} />
 
       <div className="pt-24 pb-32 max-w-4xl mx-auto px-4">
 

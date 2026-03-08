@@ -255,7 +255,7 @@ function OfferBanner({ offers }) {
   )
 }
 
-export default function HomePage({ onLogoClick, loggedIn, onLogin, onLogout }) {
+export default function HomePage({ onLogoClick }) {
   const topRef = useRef(null)
   const bottomRef = useRef(null)
   const navigate = useNavigate()
@@ -366,12 +366,19 @@ export default function HomePage({ onLogoClick, loggedIn, onLogin, onLogout }) {
       </div>
 
       <div ref={topRef} />
-      <Navbar onLogoClick={onLogoClick} loggedIn={loggedIn} onLogin={onLogin} onLogout={onLogout} />
+      <Navbar onLogoClick={onLogoClick} />
 
       <div className="pt-20 flex flex-col gap-4">
 
+        {/* ── OFFER BANNER — above search bar ── */}
+        {activeOffers.length > 0 && (
+          <div className="pt-4">
+            <OfferBanner offers={activeOffers} />
+          </div>
+        )}
+
         {/* Search bar */}
-        <div className="pt-4">
+        <div className={activeOffers.length > 0 ? "" : "pt-4"}>
           <SearchBar onSearch={handleSearch} />
         </div>
 
