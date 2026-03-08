@@ -44,9 +44,9 @@ const reviews = [
 ]
 
 const nestEscapes = [
-  { icon: "🚗", title: "Hangout", desc: "Explore Jorhat and beyond at your own pace. Self-drive and chauffeur options available.", tag: "On Request" },
-  { icon: "👨‍🍳", title: "Chef on Demand", desc: "Authentic Assamese cuisine and regional delicacies prepared fresh and delivered to your room.", tag: "On Order" },
-  { icon: "🎶", title: "Orchestra & DJ", desc: "Premium live entertainment with curated music performances and DJ nights for special evenings.", tag: "On Request" },
+  { image: "/hangout.jpg", title: "Hangout", desc: "Hangout with us & Explore Jorhat and beyond.", tag: "On Request" },
+  { image: "/chefondemand.jpg", title: "Chef on Demand", desc: "Authentic Assamese cuisine and regional delicacies prepared fresh and delivered to your room.", tag: "On Order" },
+  { image: "/orchestraanddj.jpg", title: "Orchestra & DJ", desc: "Premium live entertainment with curated music performances and DJ nights for special evenings.", tag: "On Request" },
 ]
 
 const nestEscapeDetails = {
@@ -1221,12 +1221,23 @@ export default function HomestayPage({ onLogoClick }) {
           <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
             {nestEscapes.map((e, i) => (
               <div key={i} onClick={() => { setSelectedEscape(nestEscapeDetails[e.title]); setShowNestEscapes(true) }}
-                className="bg-[#2a2a2a] border border-[#3a3a3a] rounded-2xl p-4 hover:border-[#8B6914] transition cursor-pointer">
-                <div className="text-3xl mb-2">{e.icon}</div>
-                <p style={{ fontFamily: "'Playfair Display', serif" }}
-                  className="text-[#F8F5F0] font-semibold text-sm mb-1">{e.title}</p>
-                <p className="text-[#9a9a9a] text-xs mb-3">{e.desc}</p>
-                <span className="text-xs bg-[#1C1C1C] text-[#8B6914] border border-[#8B6914]/30 px-2 py-0.5 rounded-full">{e.tag}</span>
+                className="border border-[#3a3a3a] rounded-2xl overflow-hidden hover:border-[#8B6914] transition cursor-pointer"
+                style={{ background: "transparent" }}>
+                <div className="w-full h-48 overflow-hidden"
+                  style={{ background: "transparent" }}>
+                  <img
+                    src={e.image}
+                    alt={e.title}
+                    className="w-full h-full object-cover"
+                    style={{ mixBlendMode: "screen", filter: "brightness(0.92) contrast(1.05)" }}
+                  />
+                </div>
+                <div className="px-4 py-3" style={{ background: "rgba(42,42,42,0.6)" }}>
+                  <p style={{ fontFamily: "'Playfair Display', serif" }}
+                    className="text-[#F8F5F0] font-semibold text-sm mb-1">{e.title}</p>
+                  <p className="text-[#9a9a9a] text-xs mb-3">{e.desc}</p>
+                  <span className="text-xs bg-[#1C1C1C] text-[#8B6914] border border-[#8B6914]/30 px-2 py-0.5 rounded-full">{e.tag}</span>
+                </div>
               </div>
             ))}
           </div>
