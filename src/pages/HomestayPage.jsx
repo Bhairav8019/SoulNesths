@@ -501,124 +501,202 @@ export default function HomestayPage({ onLogoClick }) {
   const [showLoginPrompt, setShowLoginPrompt] = useState(false)
   const [showFeePopup, setShowFeePopup] = useState(false)
   const [showDirectPopup, setShowDirectPopup] = useState(false)
-  const [showGuestPopup, setShowGuestPopup] = useState(false)
-  const [pendingType, setPendingType] = useState(null)
-  const [guestDetails, setGuestDetails] = useState(null)
   const [showNestEscapes, setShowNestEscapes] = useState(false)
+  const [selectedEscape, setSelectedEscape] = useState(null)
+  const { toggleWishlist, isWishlisted } = useWishlist()
 
-  const { wishlist, addToWishlist, removeFromWishlist } = useWishlist()
-  const isWishlisted = (homestayId) => wishlist.some(item => item.id === homestayId)
+  // ── Date highlight — pulses amber when user taps Reserve without dates ──
+  const [highlightDates, setHighlightDates] = useState(false)
 
-  const toggleWishlist = (homestay) => {
-    if (isWishlisted(homestay.id)) {
-      removeFromWishlist(homestay.id)
-    } else {
-      addToWishlist(homestay)
+  // ── Guest details flow ───────────────────────────────────────
+  const [showGuestPopup, setShowGuestPopup]  = useState(false)
+  const [pendingBookingType, setPendingType] = useState(null)   // "fee" | "direct"
+  const [guestDetails, setGuestDetails]      = useState(null)
+
+  // ── Live availability from Firestore ─────────────────────────
+  // Map<roomId, { booked, checkOutDate, bookingId }>
+  // Starts as empty map → rooms default available until Firestore responds.
+  // Phase 4 admin: this same map is what the admin dashboard reads/writes.
+  const [liveAvailability, setLiveAvailability] = useState(new Map())
+  const [availabilityLoading, setAvailabilityLoading] = useState(true)
+
+  useEffect(() => {
+    if (!h) return
+    const roomIds = h.rooms.map(r => r.id)
+    ;(async () => {
+      try {
+        // 1. Auto-restore any rooms whose checkout date has passed (00:00 today)
+        await checkAndRestoreExpiredRooms(h.id, roomIds)
+        // 2. Fetch fresh availability after potential restores
+        const availability = await fetchRoomAvailability(h.id, roomIds)
+        setLiveAvailability(availability)
+      } catch (err) {
+        // Firebase not yet configured or offline — fall back to static booked flag
+        console.warn("Firestore unavailable, falling back to static room data:", err.message)
+        const fallback = new Map()
+        h.rooms.forEach(r => fallback.set(r.id, { booked: r.booked ?? false, checkOutDate: null, bookingId: null }))
+        setLiveAvailability(fallback)
+      } finally {
+        setAvailabilityLoading(false)
+      }
+    })()
+  }, [h?.id])
+
+  useEffect(() => {
+    if (checkIn && checkOut) setHighlightDates(false)
+  }, [checkIn, checkOut])
+
+  // ── Multi-room helpers ───────────────────────────────────────
+  const primaryRoom = selectedRooms[0] || null
+  const combinedMaxGuests = selectedRooms.reduce((sum, r) => sum + r.maxGuests, 0)
+  const atPropertyCap = h ? selectedRooms.reduce((sum, r) => sum + r.maxGuests, 0) >= h.totalMaxGuests : false
+
+  // ── Availability + conflict logic ────────────────────────────
+  // A room is unavailable if:
+  //   1. Firestore says booked: true (live, cross-user), OR
+  //   2. Static fallback room.booked === true (pre-Firebase), OR
+  //   3. It conflicts with a currently selected room
+  // Phase 4 admin: flip booked in Firestore → reflects here in real-time
+  //   (swap fetchRoomAvailability for onSnapshot for instant updates).
+  const unavailableRoomIds = new Set(
+    h ? h.rooms
+      .filter(r => {
+        const live = liveAvailability.get(r.id)
+        const isBooked = live ? live.booked : (r.booked ?? false)
+        if (isBooked) return true
+        return selectedRooms.some(sel => sel.conflictsWith?.includes(r.id))
+      })
+      .map(r => r.id)
+    : []
+  )
+
+  // Helper: why is this room unavailable? (for UI label)
+  const unavailableReason = (room) => {
+    const live = liveAvailability.get(room.id)
+    const isBooked = live ? live.booked : (room.booked ?? false)
+    if (isBooked) {
+      if (live?.checkOutDate) {
+        const d = new Date(live.checkOutDate)
+        const label = d.toLocaleDateString("en-IN", { day: "2-digit", month: "short" })
+        return `Booked · Available from ${label}`
+      }
+      return "Currently booked"
     }
+    const blocker = selectedRooms.find(sel => sel.conflictsWith?.includes(room.id))
+    if (blocker) return `Unavailable with ${blocker.name}`
+    return "Unavailable"
   }
 
-  // Availability state
-  const [availabilityLoading, setAvailabilityLoading] = useState(false)
-  const [unavailableRoomIds, setUnavailableRoomIds] = useState(new Set())
-  const [unavailableReason, setUnavailableReason] = useState(() => () => null)
+  // Rooms not yet selected AND not unavailable (for "Add another room" panel)
+  const availableToAdd = h
+    ? h.rooms.filter(r => !selectedRooms.find(s => s.id === r.id) && !unavailableRoomIds.has(r.id))
+    : []
 
-  // Load availability on mount
-  useEffect(() => {
-    if (!h?.rooms) return
-    setAvailabilityLoading(true)
-    checkAndRestoreExpiredRooms()
-    fetchRoomAvailability(h.id, h.rooms).then(result => {
-      setUnavailableRoomIds(new Set(result.unavailable || []))
-      setUnavailableReason(() => (room) => result.unavailableReasons?.[room.id] || "Unavailable")
-      setAvailabilityLoading(false)
-    }).catch(() => setAvailabilityLoading(false))
-  }, [h?.id, h?.rooms])
-
-  const nights = checkIn && checkOut
-    ? Math.ceil((new Date(checkOut) - new Date(checkIn)) / (1000 * 60 * 60 * 24))
-    : 0
-
-  const combinedMaxGuests = selectedRooms.reduce((sum, r) => sum + (r.maxGuests || 2), 0)
-
-  // Platform fee logic — total for all selected rooms
-  const scaledFee = selectedRooms.length > 0
-    ? h.platformFee * selectedRooms.length
-    : 0
-
-  // Navigation helpers
-  const prev = () => setImgIndex(i => (i === 0 ? h.images.length - 1 : i - 1))
-  const next = () => setImgIndex(i => (i === h.images.length - 1 ? 0 : i + 1))
-
-  // Room toggle
   const toggleRoom = (room) => {
+    // Block if unavailable
     if (unavailableRoomIds.has(room.id)) return
     setSelectedRooms(prev => {
       const exists = prev.find(r => r.id === room.id)
-      if (exists) return prev.filter(r => r.id !== room.id)
-      return [...prev, room]
+      if (exists) {
+        const next = prev.filter(r => r.id !== room.id)
+        const newCap = next.reduce((sum, r) => sum + r.maxGuests, 0)
+        setGuests(g => Math.min(g, Math.max(1, newCap)))
+        return next
+      } else {
+        return [...prev, room]
+      }
     })
   }
 
-  // Booking flow
-  const handleBookNow = () => {
-    if (!loggedIn) {
-      setShowLoginPrompt(true)
-      return
-    }
+  const getTodayDate = () => new Date().toISOString().split("T")[0]
+
+  const handleCheckInChange = (value) => {
+    if (value < getTodayDate()) return
+    setCheckIn(value)
+    setHighlightDates(false)
+    if (checkOut && checkOut < value) setCheckOut("")
+  }
+
+  const handleCheckOutChange = (value) => {
+    if (checkIn && value < checkIn) return
+    if (!checkIn && value <= getTodayDate()) return
+    setCheckOut(value)
+    setHighlightDates(false)
+  }
+
+  if (!h) return (
+    <div className="min-h-screen bg-[#1C1C1C] flex items-center justify-center text-[#F8F5F0]">
+      Homestay not found.
+    </div>
+  )
+
+  const prev = () => setImgIndex(i => (i === 0 ? h.images.length - 1 : i - 1))
+  const next = () => setImgIndex(i => (i === h.images.length - 1 ? 0 : i + 1))
+
+  const nights = checkIn && checkOut
+    ? Math.max(1, Math.round((new Date(checkOut) - new Date(checkIn)) / (1000 * 60 * 60 * 24)))
+    : 1
+
+  const subtotal = selectedRooms.reduce((sum, r) => {
+    return sum + (r.discountPrice ?? r.regularPrice) * nights
+  }, 0)
+
+  // ── Platform fee scales with room count ──────────────────────
+  const scaledFee = h.platformFee * selectedRooms.length   // ₹149 × rooms
+
+  // ── 72hr gate ────────────────────────────────────────────────
+  // Direct (no-fee) mode: ONLY when check-in ≤ 72hrs AND exactly 1 room
+  // Multi-room within 72hrs → still requires scaled fee payment
+  const hrs = hoursUntilCheckIn(checkIn)
+  const isWithin72 = checkIn && hrs <= 72
+  const isDirectMode = isWithin72 && selectedRooms.length === 1
+
+  const handleReserve = () => {
+    if (!loggedIn) { setShowLoginPrompt(true); return }
     if (!checkIn || !checkOut) {
-      alert("Please select check-in and check-out dates first.")
+      setHighlightDates(true)
+      document.getElementById("booking-dates")?.scrollIntoView({ behavior: "smooth", block: "center" })
       return
     }
-    if (selectedRooms.length === 0) {
-      alert("Please select at least one room.")
-      return
-    }
-    if (guests > combinedMaxGuests) {
-      alert(`Selected rooms can accommodate up to ${combinedMaxGuests} guests. Please reduce the number of guests.`)
-      return
-    }
+    setPendingType(isDirectMode ? "direct" : "fee")
     setShowGuestPopup(true)
-    setPendingType(nights > 0 && hoursUntilCheckIn(checkIn) > 72 ? "fee" : "direct")
   }
 
   const handleGuestConfirmed = (details) => {
     setGuestDetails(details)
     setShowGuestPopup(false)
-    if (pendingType === "fee") {
-      setShowFeePopup(true)
-    } else {
-      setShowDirectPopup(true)
-    }
-    setPendingType(null)
+    if (pendingBookingType === "direct") setShowDirectPopup(true)
+    else setShowFeePopup(true)
   }
 
-  // Finalize booking
+  // ── Shared post-confirm: write to Firestore + update local state ──
   const finaliseBooking = async () => {
-    if (!h || selectedRooms.length === 0 || !checkIn || !checkOut || !guestDetails) return null
-    const bookingData = {
-      homestayId: h.id,
-      homestayName: h.name,
-      rooms: selectedRooms.map(r => ({ id: r.id, name: r.name, price: r.discountPrice ?? r.regularPrice })),
-      checkIn,
-      checkOut,
-      guests,
-      nights,
-      platformFee: scaledFee,
-      totalAmount: selectedRooms.reduce((sum, r) => sum + (r.discountPrice ?? r.regularPrice) * nights, 0),
-      guestDetails,
-      createdAt: new Date().toISOString(),
-      status: "confirmed",
-    }
-    const result = await confirmBookingInFirestore(bookingData)
-    if (result?.bookingId) {
-      // Clear selections after successful booking
+    if (!checkIn || !checkOut) return
+    try {
+      const bookingId = await confirmBookingInFirestore({
+        homestayId:  h.id,
+        roomIds:     selectedRooms.map(r => r.id),
+        checkIn,
+        checkOut,
+        guests,
+        nights,
+        totalAmount: subtotal,
+        platformFee: scaledFee,
+      })
+      // Update local availability map immediately so UI reflects without refetch
+      setLiveAvailability(prev => {
+        const next = new Map(prev)
+        selectedRooms.forEach(r => {
+          next.set(r.id, { booked: true, checkOutDate: checkOut, bookingId })
+        })
+        return next
+      })
       setSelectedRooms([])
-      setCheckIn("")
-      setCheckOut("")
-      setGuests(1)
-      setGuestDetails(null)
+      return bookingId
+    } catch (err) {
+      console.error("Firestore booking write failed:", err.message)
+      return null
     }
-    return result?.bookingId || null
   }
 
   // Phase 4: Razorpay onSuccess callback calls finaliseBooking() then redirects
@@ -809,6 +887,12 @@ export default function HomestayPage({ onLogoClick }) {
           </div>
         )}
 
+        </p>
+            </div>
+            <span className="text-white text-2xl font-bold">30% off</span>
+          </div>
+        )}
+
         {/* Room Selection */}
         <div className="mb-6">
           <div className="flex items-center gap-2 mb-1">
@@ -918,141 +1002,217 @@ export default function HomestayPage({ onLogoClick }) {
               )}
             </div>
 
-            {/* ── Date & Guest inputs ── */}
-            <div className="grid grid-cols-3 gap-2 mb-4">
-              <div className="col-span-1">
-                <label className="text-[#8B6914] text-xs font-medium mb-1 block">Check-in</label>
-                <div className="relative">
-                  <Calendar size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-[#8B6914]" />
-                  <input type="date" value={checkIn}
-                    onChange={e => setCheckIn(e.target.value)}
-                    className="w-full bg-[#1C1C1C] text-[#F8F5F0] text-xs pl-9 pr-2 py-2.5 rounded-xl border border-[#3a3a3a] outline-none"
-                    style={{ colorScheme: "dark" }} />
+            {/* ── Add another room prompt (if rooms still available and not at property cap) ── */}
+            {availableToAdd.length > 0 && !atPropertyCap && (
+              <div className="bg-[#1C1C1C] border border-dashed border-[#3a3a3a] rounded-2xl px-3 py-3 mb-4">
+                <p className="text-[#8B6914] text-xs font-medium mb-2 flex items-center gap-1">
+                  <Users size={11} /> Need more rooms?
+                </p>
+                <div className="flex flex-wrap gap-2">
+                  {availableToAdd.map(r => {
+                    const p = r.discountPrice ?? r.regularPrice
+                    return (
+                      <button key={r.id} onClick={() => toggleRoom(r)}
+                        className="flex items-center gap-1.5 bg-[#2a2a2a] border border-[#3a3a3a] hover:border-[#8B6914] text-[#F8F5F0] text-xs px-3 py-1.5 rounded-full transition">
+                        <span className="text-[#8B6914]">+</span>
+                        {r.name}
+                        <span className="text-[#9a9a9a]">·</span>
+                        <span className="text-[#9a9a9a]">₹{p}</span>
+                      </button>
+                    )
+                  })}
                 </div>
+                <p className="text-[#9a9a9a] text-xs mt-2 italic">
+                  ✦ Property can host up to {h.totalMaxGuests} guests total
+                </p>
               </div>
-              <div className="col-span-1">
-                <label className="text-[#8B6914] text-xs font-medium mb-1 block">Check-out</label>
-                <div className="relative">
-                  <Calendar size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-[#8B6914]" />
-                  <input type="date" value={checkOut}
-                    onChange={e => setCheckOut(e.target.value)}
-                    min={checkIn}
-                    className="w-full bg-[#1C1C1C] text-[#F8F5F0] text-xs pl-9 pr-2 py-2.5 rounded-xl border border-[#3a3a3a] outline-none"
-                    style={{ colorScheme: "dark" }} />
-                </div>
+            )}
+            {atPropertyCap && (
+              <div className="bg-[#2D5A3D]/10 border border-[#2D5A3D]/30 rounded-2xl px-3 py-2.5 mb-4">
+                <p className="text-[#2D5A3D] text-xs font-semibold">✓ Full property booked</p>
+                <p className="text-[#9a9a9a] text-xs mt-0.5">You've selected rooms up to the property's max capacity of {h.totalMaxGuests} guests.</p>
               </div>
-              <div className="col-span-1">
-                <label className="text-[#8B6914] text-xs font-medium mb-1 block">Guests</label>
-                <div className="relative">
-                  <Users size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-[#8B6914]" />
-                  <select value={guests}
-                    onChange={e => setGuests(parseInt(e.target.value))}
-                    className="w-full bg-[#1C1C1C] text-[#F8F5F0] text-xs pl-9 pr-2 py-2.5 rounded-xl border border-[#3a3a3a] outline-none appearance-none">
-                    {[...Array(combinedMaxGuests)].map((_, i) => (
-                      <option key={i + 1} value={i + 1}>{i + 1} {i === 0 ? "Guest" : "Guests"}</option>
-                    ))}
-                  </select>
-                </div>
+            )}
+
+            {/* Dates — id for scroll-into-view on missing date */}
+            <div id="booking-dates" className="grid grid-cols-2 gap-3 mb-4">
+              <div className="bg-[#1C1C1C] rounded-2xl px-4 py-3 transition-all duration-200"
+                style={highlightDates && !checkIn
+                  ? { border: "2px solid #8B6914", boxShadow: "0 0 0 4px rgba(139,105,20,0.18)", animation: "datePulse 0.9s ease-in-out 3" }
+                  : { border: "1px solid #3a3a3a" }}>
+                <p className="text-[#8B6914] text-xs font-medium mb-1 flex items-center gap-1">
+                  <Calendar size={11} /> Check-in
+                  {highlightDates && !checkIn && <span className="ml-1 font-bold animate-pulse">← required</span>}
+                </p>
+                <input type="date" value={checkIn}
+                  onChange={e => handleCheckInChange(e.target.value)}
+                  min={getTodayDate()}
+                  className="bg-transparent text-[#F8F5F0] text-sm outline-none w-full" />
+              </div>
+              <div className="bg-[#1C1C1C] rounded-2xl px-4 py-3 transition-all duration-200"
+                style={highlightDates && !checkOut
+                  ? { border: "2px solid #8B6914", boxShadow: "0 0 0 4px rgba(139,105,20,0.18)", animation: "datePulse 0.9s ease-in-out 3" }
+                  : { border: "1px solid #3a3a3a" }}>
+                <p className="text-[#8B6914] text-xs font-medium mb-1 flex items-center gap-1">
+                  <Calendar size={11} /> Check-out
+                  {highlightDates && !checkOut && <span className="ml-1 font-bold animate-pulse">← required</span>}
+                </p>
+                <input type="date" value={checkOut}
+                  onChange={e => handleCheckOutChange(e.target.value)}
+                  min={checkIn || getTodayDate()}
+                  className="bg-transparent text-[#F8F5F0] text-sm outline-none w-full" />
               </div>
             </div>
+            {highlightDates && (!checkIn || !checkOut) && (
+              <div className="bg-[#8B6914]/10 border border-[#8B6914]/40 rounded-xl px-3 py-2 mb-4 flex items-center gap-2">
+                <Calendar size={13} className="text-[#8B6914] flex-shrink-0" />
+                <p className="text-[#8B6914] text-xs font-medium">Set both check-in and check-out dates to continue booking.</p>
+              </div>
+            )}
 
-            {/* ── Pricing breakdown ── */}
-            {nights > 0 && (
-              <div className="bg-[#1C1C1C] rounded-2xl p-3 mb-4 border border-[#3a3a3a]">
-                <div className="flex justify-between text-xs mb-1">
-                  <span className="text-[#9a9a9a]">
-                    {selectedRooms.map(r => r.name).join(" + ")} × {nights} {nights === 1 ? "night" : "nights"}
-                  </span>
-                  <span className="text-[#F8F5F0]">
-                    ₹{selectedRooms.reduce((sum, r) => sum + (r.discountPrice ?? r.regularPrice) * nights, 0)}
-                  </span>
-                </div>
-                {hoursUntilCheckIn(checkIn) <= 72 && (
-                  <div className="flex justify-between text-xs">
-                    <span className="text-[#2D5A3D]">Platform fee</span>
-                    <span className="text-[#2D5A3D]">₹0</span>
+            {/* Guests — capped by combinedMaxGuests */}
+            <div className="bg-[#1C1C1C] rounded-2xl px-4 py-3 border border-[#3a3a3a] mb-5">
+              <p className="text-[#8B6914] text-xs font-medium mb-2 flex items-center gap-1">
+                <Users size={11} /> Guests
+              </p>
+              <div className="flex items-center gap-4">
+                <button onClick={() => setGuests(g => Math.max(1, g - 1))}
+                  className="w-8 h-8 rounded-full bg-[#2a2a2a] border border-[#3a3a3a] text-[#F8F5F0] flex items-center justify-center hover:border-[#8B6914] transition text-lg">−</button>
+                <span className="text-[#F8F5F0] font-semibold w-6 text-center">{guests}</span>
+                <button onClick={() => setGuests(g => Math.min(combinedMaxGuests, g + 1))}
+                  className="w-8 h-8 rounded-full bg-[#2a2a2a] border border-[#3a3a3a] text-[#F8F5F0] flex items-center justify-center hover:border-[#8B6914] transition text-lg">+</button>
+                <span className="text-[#9a9a9a] text-sm">{guests === 1 ? "1 guest" : `${guests} guests`}</span>
+              </div>
+              <p className="text-[#9a9a9a] text-xs mt-2 italic">
+                ✦ Max {combinedMaxGuests} guests across {selectedRooms.length} {selectedRooms.length === 1 ? "room" : "rooms"}
+                {checkIn && checkOut ? ` · ${nights} ${nights === 1 ? "night" : "nights"}` : ""}
+              </p>
+              {guests > combinedMaxGuests - 2 && guests === combinedMaxGuests && availableToAdd.length > 0 && !atPropertyCap && (
+                <p className="text-[#8B6914] text-xs mt-1 font-medium">
+                  ⚠ At room capacity — add another room above for more guests
+                </p>
+              )}
+            </div>
+
+            {/* Price breakdown */}
+            <div className="border-t border-[#3a3a3a] pt-4 mb-5 flex flex-col gap-2">
+              {selectedRooms.map(r => {
+                const p = r.discountPrice ?? r.regularPrice
+                return (
+                  <div key={r.id} className="flex justify-between text-sm">
+                    <span className="text-[#9a9a9a]">{r.name} · ₹{p} × {nights}n</span>
+                    <span className="text-[#F8F5F0]">₹{p * nights}</span>
                   </div>
-                )}
-                {hoursUntilCheckIn(checkIn) > 72 && (
-                  <div className="flex justify-between text-xs">
-                    <span className="text-[#8B6914]">Platform fee</span>
-                    <span className="text-[#8B6914]">₹{scaledFee}</span>
+                )
+              })}
+              {isDirectMode ? (
+                // Single room + within 72hrs → no fee
+                <>
+                  <div className="flex justify-between text-sm text-[#9a9a9a] italic">
+                    <span>Pay at homestay on arrival</span>
+                    <span>₹{subtotal}</span>
                   </div>
-                )}
-                <div className="border-t border-[#3a3a3a] mt-2 pt-2 flex justify-between items-center">
-                  <span className="text-[#F8F5F0] text-sm font-semibold">Total to Pay Now</span>
-                  <span style={{ fontFamily: "'Playfair Display', serif" }}
-                    className={`text-xl font-bold ${hoursUntilCheckIn(checkIn) <= 72 ? "text-[#2D5A3D]" : "text-[#8B6914]"}`}>
-                    ₹{hoursUntilCheckIn(checkIn) <= 72 ? 0 : scaledFee}
-                  </span>
-                </div>
-                {nights > 0 && (
-                  <div className="mt-2 pt-2 border-t border-[#3a3a3a] flex justify-between text-xs">
-                    <span className="text-[#9a9a9a]">Pay at homestay</span>
+                  <div className="border-t border-[#2D5A3D]/30 pt-2 flex justify-between font-semibold">
+                    <span className="text-[#F8F5F0]">Pay now</span>
+                    <span style={{ fontFamily: "'Playfair Display', serif" }}
+                      className="text-[#2D5A3D] text-lg">₹0</span>
+                  </div>
+                </>
+              ) : (
+                // Fee mode — scaled by room count
+                <>
+                  <div className="flex justify-between text-sm">
                     <span className="text-[#9a9a9a]">
-                      ₹{Math.max(0, selectedRooms.reduce((sum, r) => sum + (r.discountPrice ?? r.regularPrice) * nights, 0) - scaledFee)}
+                      Platform fee{selectedRooms.length > 1 ? ` (₹${h.platformFee} × ${selectedRooms.length})` : ""}
                     </span>
+                    <span className="text-[#F8F5F0]">₹{scaledFee}</span>
                   </div>
-                )}
-                {hoursUntilCheckIn(checkIn) > 72 && hoursUntilCheckIn(checkIn) <= 168 && (
-                  <p className="text-[#8B6914] text-xs mt-2 italic">✦ 50% off — booked 3-7 days ahead</p>
-                )}
-                {hoursUntilCheckIn(checkIn) > 168 && (
-                  <p className="text-[#8B6914] text-xs mt-2 italic">✦ 30% off — booked more than 7 days ahead</p>
-                )}
-              </div>
-            )}
+                  <div className="flex justify-between text-sm text-[#9a9a9a] italic">
+                    <span>Remaining (pay at homestay)</span>
+                    <span>₹{Math.max(0, subtotal - scaledFee)}</span>
+                  </div>
+                  <div className="border-t border-[#3a3a3a] pt-2 flex justify-between font-semibold">
+                    <span className="text-[#F8F5F0]">Pay now</span>
+                    <span style={{ fontFamily: "'Playfair Display', serif" }}
+                      className="text-[#8B6914] text-lg">₹{scaledFee}</span>
+                  </div>
+                </>
+              )}
+            </div>
 
-            {nights <= 0 && selectedRooms.length > 0 && (
-              <div className="bg-[#1C1C1C] rounded-2xl p-3 mb-4 border border-[#3a3a3a] text-center">
-                <p className="text-[#9a9a9a] text-xs">Select check-in and check-out dates to see pricing</p>
-              </div>
+            {/* ── THE BUTTON — three states ── */}
+            {isDirectMode ? (
+              // State 1: single room + within 72hrs → free booking
+              <>
+                <div className="bg-[#1a2a1a] border border-[#2D5A3D]/40 rounded-xl px-3 py-2 mb-3">
+                  <p className="text-[#2D5A3D] text-xs font-semibold">⚡ Last-minute booking</p>
+                  <p className="text-[#9a9a9a] text-xs mt-0.5">
+                    Check-in within 72 hours — no platform fee. Pay full amount at homestay on arrival.
+                  </p>
+                </div>
+                <button onClick={handleReserve}
+                  className="w-full text-white py-4 rounded-2xl font-semibold text-base transition shadow-lg flex items-center justify-center gap-2"
+                  style={{ fontFamily: "'Playfair Display', serif", background: "linear-gradient(135deg, #2D5A3D, #3a7a52)" }}>
+                  <CheckCircle2 size={18} />
+                  Book Now — No Payment Required
+                </button>
+                <p className="text-center text-[#9a9a9a] text-xs mt-3">
+                  Full amount ₹{subtotal} paid directly at homestay on check-in
+                </p>
+              </>
+            ) : isWithin72 && selectedRooms.length > 1 ? (
+              // State 2: multiple rooms + within 72hrs → fee still required
+              <>
+                <div className="bg-[#2a1a0a] border border-[#8B6914]/40 rounded-xl px-3 py-2 mb-3">
+                  <p className="text-[#8B6914] text-xs font-semibold">⚡ Last-minute · Multi-room booking</p>
+                  <p className="text-[#9a9a9a] text-xs mt-0.5">
+                    72hr waiver applies to single rooms only. Booking {selectedRooms.length} rooms requires a platform fee of ₹{scaledFee} (₹{h.platformFee} × {selectedRooms.length} rooms).
+                  </p>
+                </div>
+                <button onClick={handleReserve}
+                  className="w-full bg-[#8B6914] text-white py-4 rounded-2xl font-semibold text-base hover:bg-[#a07820] transition shadow-lg"
+                  style={{ fontFamily: "'Playfair Display', serif" }}>
+                  Reserve Now — Pay ₹{scaledFee} to Confirm
+                </button>
+                <p className="text-center text-[#9a9a9a] text-xs mt-3">
+                  Full refund if cancelled 48 hrs before check-in · Remaining amount paid at homestay
+                </p>
+              </>
+            ) : (
+              // State 3: standard booking (> 72hrs, any number of rooms)
+              <>
+                <button onClick={handleReserve}
+                  className="w-full bg-[#2D5A3D] text-white py-4 rounded-2xl font-semibold text-base hover:bg-[#8B6914] transition shadow-lg"
+                  style={{ fontFamily: "'Playfair Display', serif" }}>
+                  Reserve Now — Pay ₹{scaledFee} to Confirm
+                </button>
+                <p className="text-center text-[#9a9a9a] text-xs mt-3">
+                  Full refund if cancelled 48 hrs before check-in · Remaining amount paid at homestay
+                </p>
+              </>
             )}
-
-            {/* ── CTA ── */}
-            <button onClick={handleBookNow}
-              disabled={!checkIn || !checkOut || selectedRooms.length === 0 || guests > combinedMaxGuests}
-              className={`w-full py-4 rounded-2xl font-semibold text-sm transition shadow-lg ${
-                !checkIn || !checkOut || selectedRooms.length === 0 || guests > combinedMaxGuests
-                  ? "bg-[#3a3a3a] text-[#5a5a5a] cursor-not-allowed"
-                  : "bg-[#2D5A3D] text-white hover:bg-[#8B6914]"
-              }`}
-              style={{ fontFamily: "'Playfair Display', serif" }}>
-              {selectedRooms.length === 0 ? "Select a Room to Continue"
-                : !checkIn || !checkOut ? "Select Dates to Continue"
-                  : guests > combinedMaxGuests ? `Max ${combinedMaxGuests} guests`
-                    : "Book Now"}
-            </button>
           </div>
         )}
 
         <div className="border-t border-[#3a3a3a] my-6" />
 
-        {/* Reviews */}
+        {/* Nest Escapes */}
         <div className="mb-8">
-          <div className="flex items-center justify-between mb-4">
+          <div className="flex items-center gap-2 mb-1">
             <h2 style={{ fontFamily: "'Playfair Display', serif" }}
-              className="text-[#F8F5F0] text-lg font-semibold">Reviews</h2>
-            <div className="flex items-center gap-1 bg-[#2a2a2a] px-3 py-1.5 rounded-xl border border-[#3a3a3a]">
-              <Star size={13} className="text-[#8B6914] fill-[#8B6914]" />
-              <span className="text-[#F8F5F0] text-sm font-semibold">{h.rating}</span>
-              <span className="text-[#9a9a9a] text-xs">({h.reviews} reviews)</span>
-            </div>
+              className="text-[#F8F5F0] text-lg font-semibold">Nest Escapes</h2>
+            <span className="text-xs text-[#8B6914] border border-[#8B6914]/40 px-2 py-0.5 rounded-full">Curated Experiences</span>
           </div>
-          <div className="flex flex-col gap-3">
-            {reviews.map((r, i) => (
-              <div key={i} className="bg-[#2a2a2a] border border-[#3a3a3a] rounded-2xl p-4">
-                <div className="flex items-center justify-between mb-2">
-                  <span className="text-[#F8F5F0] font-medium text-sm">{r.name}</span>
-                  <span className="text-[#9a9a9a] text-xs">{r.date}</span>
-                </div>
-                <div className="flex items-center gap-1 mb-2">
-                  {[...Array(5)].map((_, j) => (
-                    <Star key={j} size={12}
-                      className={j < r.rating ? "text-[#8B6914] fill-[#8B6914]" : "text-[#3a3a3a]"} />
-                  ))}
-                </div>
-                <p className="text-[#9a9a9a] text-sm">{r.comment}</p>
+          <p className="text-[#9a9a9a] text-xs mb-4">Handpicked add-ons to elevate your stay</p>
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
+            {nestEscapes.map((e, i) => (
+              <div key={i} onClick={() => setShowNestEscapes(true)}
+                className="bg-[#2a2a2a] border border-[#3a3a3a] rounded-2xl p-4 hover:border-[#8B6914] transition cursor-pointer">
+                <div className="text-3xl mb-2">{e.icon}</div>
+                <p style={{ fontFamily: "'Playfair Display', serif" }}
+                  className="text-[#F8F5F0] font-semibold text-sm mb-1">{e.title}</p>
+                <p className="text-[#9a9a9a] text-xs mb-3">{e.desc}</p>
+                <span className="text-xs bg-[#1C1C1C] text-[#8B6914] border border-[#8B6914]/30 px-2 py-0.5 rounded-full">{e.tag}</span>
               </div>
             ))}
           </div>
@@ -1060,32 +1220,40 @@ export default function HomestayPage({ onLogoClick }) {
 
         <div className="border-t border-[#3a3a3a] my-6" />
 
-        {/* Nest Escapes */}
+        {/* Reviews */}
         <div className="mb-8">
-          <h2 style={{ fontFamily: "'Playfair Display', serif" }}
-            className="text-[#F8F5F0] text-lg font-semibold mb-4">Nest Escapes ✦</h2>
-          <div className="grid grid-cols-1 gap-3">
-            {nestEscapes.map((item, i) => (
-              <div key={i} className="bg-[#2a2a2a] border border-[#3a3a3a] rounded-2xl p-4 flex items-start gap-3">
-                <span className="text-2xl">{item.icon}</span>
-                <div className="flex-1">
-                  <div className="flex items-center justify-between">
-                    <h3 className="text-[#F8F5F0] font-medium text-sm">{item.title}</h3>
-                    {item.tag && (
-                      <span className={`text-xs px-2 py-0.5 rounded-full ${
-                        item.tag === "On Request" ? "bg-[#2D5A3D]/20 text-[#2D5A3D]" :
-                        item.tag === "On Order" ? "bg-[#8B6914]/20 text-[#8B6914]" :
-                        "bg-[#3a3a3a] text-[#9a9a9a]"
-                      }`}>{item.tag}</span>
-                    )}
+          <div className="flex items-center justify-between mb-4">
+            <h2 style={{ fontFamily: "'Playfair Display', serif" }}
+              className="text-[#F8F5F0] text-lg font-semibold">Guest Reviews</h2>
+            <div className="flex items-center gap-1">
+              <Star size={14} className="text-[#8B6914] fill-[#8B6914]" />
+              <span className="text-[#F8F5F0] font-bold">{h.rating}</span>
+              <span className="text-[#9a9a9a] text-xs">({h.reviews} reviews)</span>
+            </div>
+          </div>
+          <div className="flex flex-col gap-3">
+            {reviews.map((r, i) => (
+              <div key={i} className="bg-[#2a2a2a] border border-[#3a3a3a] rounded-2xl p-4">
+                <div className="flex items-center justify-between mb-2">
+                  <div className="flex items-center gap-2">
+                    <div className="w-8 h-8 rounded-full bg-[#2D5A3D] flex items-center justify-center text-white text-xs font-bold">
+                      {r.name[0]}
+                    </div>
+                    <div>
+                      <p className="text-[#F8F5F0] text-sm font-medium">{r.name}</p>
+                      <p className="text-[#9a9a9a] text-xs">{r.date}</p>
+                    </div>
                   </div>
-                  <p className="text-[#9a9a9a] text-xs mt-1">{item.desc}</p>
+                  <div className="flex items-center gap-0.5">
+                    {[...Array(r.rating)].map((_, j) => (
+                      <Star key={j} size={11} className="text-[#8B6914] fill-[#8B6914]" />
+                    ))}
+                  </div>
                 </div>
+                <p className="text-[#9a9a9a] text-sm italic">"{r.comment}"</p>
               </div>
             ))}
           </div>
-          <button onClick={() => setShowNestEscapes(true)}
-            className="w-full mt-3 text-[#8B6914] text-sm hover:underline">View all experiences →</button>
         </div>
 
         <div className="border-t border-[#3a3a3a] my-6" />
