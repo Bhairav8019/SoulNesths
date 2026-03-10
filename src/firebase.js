@@ -11,6 +11,8 @@
 import { initializeApp }              from "firebase/app"
 import { getFirestore }               from "firebase/firestore"
 import { getAuth, RecaptchaVerifier } from "firebase/auth"
+import { getAuth, connectAuthEmulator } from "firebase/auth"
+// temporarily bypass reCAPTCHA Enterprise for localhost testing
 
 const firebaseConfig = {
   apiKey:            import.meta.env.VITE_FIREBASE_API_KEY,
