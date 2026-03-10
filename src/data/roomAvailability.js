@@ -16,6 +16,11 @@
 //             createdAt (ISO string)
 //     → One document per booking. Phase 4 admin dashboard reads this collection.
 //
+// CONFLICT RULE:
+//   standard ↔ premium-2bhk are mutually exclusive.
+//   If either is booked, the other is also marked unavailable in the returned Map.
+//   Defined in ROOM_CONFLICTS below — add pairs here to extend.
+//
 // PHASE 4 ADMIN:
 //   Admin dashboard will import { getAllBookings, cancelBooking, restoreRoom }
 //   from this file. The availability logic is the same — admin just gets
@@ -38,18 +43,28 @@ import { db } from "../firebase"
 const AVAILABILITY_COL = "roomAvailability"
 const BOOKINGS_COL     = "bookings"
 
+// ── Conflict map ─────────────────────────────────────────────
+// If a room in the key is booked, all rooms in its value array
+// are also treated as unavailable. Bidirectional by design.
+const ROOM_CONFLICTS = {
+  "standard":     ["premium-2bhk"],
+  "premium-2bhk": ["standard"],
+}
+
 // ── Document ID helper ───────────────────────────────────────
 function availDocId(homestayId, roomId) {
   return `${homestayId}_${roomId}`
 }
 
 // ── Fetch live availability for all rooms in a homestay ──────
-// Returns a Map<roomId, { booked, checkOutDate, bookingId }>
+// Returns a Map<roomId, { booked, checkOutDate, bookingId, blockedByConflict }>
 // If a room has no Firestore doc yet, it defaults to { booked: false }.
+// After fetching, conflict logic runs: if standard is booked, premium-2bhk
+// is also marked booked (blockedByConflict: true), and vice versa.
 export async function fetchRoomAvailability(homestayId, roomIds) {
   const result = new Map()
   // Default all to available
-  roomIds.forEach(id => result.set(id, { booked: false, checkOutDate: null, bookingId: null }))
+  roomIds.forEach(id => result.set(id, { booked: false, checkOutDate: null, bookingId: null, blockedByConflict: false }))
 
   const fetches = roomIds.map(roomId =>
     getDoc(doc(db, AVAILABILITY_COL, availDocId(homestayId, roomId)))
@@ -59,18 +74,39 @@ export async function fetchRoomAvailability(homestayId, roomIds) {
     if (snap.exists()) {
       const d = snap.data()
       result.set(d.roomId, {
-        booked:      d.booked,
-        checkOutDate: d.checkOutDate || null,
-        bookingId:   d.bookingId || null,
+        booked:           d.booked,
+        checkOutDate:     d.checkOutDate || null,
+        bookingId:        d.bookingId || null,
+        blockedByConflict: false,
       })
     }
   })
+
+  // ── Apply conflict propagation ───────────────────────────
+  // For every room that is booked, mark its conflict partners unavailable too.
+  result.forEach((status, roomId) => {
+    if (!status.booked) return
+    const conflicts = ROOM_CONFLICTS[roomId] || []
+    conflicts.forEach(conflictId => {
+      if (result.has(conflictId) && !result.get(conflictId).booked) {
+        result.set(conflictId, {
+          ...result.get(conflictId),
+          booked:           true,
+          blockedByConflict: true,   // flag so UI can show "unavailable" vs "booked"
+          checkOutDate:     status.checkOutDate,
+          bookingId:        status.bookingId,
+        })
+      }
+    })
+  })
+
   return result
 }
 
 // ── Auto-restore rooms whose checkout date has passed ────────
 // Called on every HomestayPage load.
 // Restores any room where booked=true and checkOutDate <= today 00:00.
+// Note: only restores rooms with actual Firestore docs (not conflict-blocked ones).
 export async function checkAndRestoreExpiredRooms(homestayId, roomIds) {
   const todayMidnight = new Date()
   todayMidnight.setHours(0, 0, 0, 0)
@@ -93,10 +129,10 @@ export async function checkAndRestoreExpiredRooms(homestayId, roomIds) {
     if (checkOut <= todayMidnight) {
       restores.push(
         updateDoc(snap.ref, {
-          booked:      false,
+          booked:       false,
           checkOutDate: null,
-          bookingId:   null,
-          restoredAt:  new Date().toISOString(),
+          bookingId:    null,
+          restoredAt:   new Date().toISOString(),
         })
       )
     }
@@ -109,6 +145,8 @@ export async function checkAndRestoreExpiredRooms(homestayId, roomIds) {
 // ── Mark rooms as booked after confirmed booking ─────────────
 // Called from HomestayPage after Razorpay/direct confirm.
 // Writes to roomAvailability + creates a bookings document.
+// Also writes conflict-partner rooms as booked in Firestore so that
+// any client fetching availability sees them as unavailable immediately.
 export async function confirmBookingInFirestore({
   homestayId,
   roomIds,
@@ -137,15 +175,23 @@ export async function confirmBookingInFirestore({
     createdAt,
   })
 
-  // 2. Mark each room as booked in roomAvailability
-  const roomWrites = roomIds.map(roomId =>
+  // 2. Collect all rooms to mark booked: the booked rooms + their conflict partners
+  const allRoomsToBlock = new Set(roomIds)
+  roomIds.forEach(roomId => {
+    const conflicts = ROOM_CONFLICTS[roomId] || []
+    conflicts.forEach(c => allRoomsToBlock.add(c))
+  })
+
+  // 3. Mark each room (and conflict partners) as booked in roomAvailability
+  const roomWrites = [...allRoomsToBlock].map(roomId =>
     setDoc(doc(db, AVAILABILITY_COL, availDocId(homestayId, roomId)), {
       roomId,
       homestayId,
-      booked:      true,
-      checkOutDate: checkOut,        // ISO string — used by auto-restore
+      booked:           true,
+      checkOutDate:     checkOut,   // ISO string — used by auto-restore
       bookingId,
-      bookedAt:    createdAt,
+      bookedAt:         createdAt,
+      blockedByConflict: !roomIds.includes(roomId),  // true if written due to conflict
     })
   )
   await Promise.all(roomWrites)
@@ -162,17 +208,27 @@ export async function getAllBookings() {
 }
 
 // Cancel a booking and restore its rooms immediately (admin action)
+// Also clears conflict-partner rooms that were blocked by this booking.
 export async function cancelBooking(bookingId, homestayId, roomIds) {
   await updateDoc(doc(db, BOOKINGS_COL, bookingId), {
     status:      "cancelled",
     cancelledAt: new Date().toISOString(),
   })
-  const restores = roomIds.map(roomId =>
+
+  // Collect booked rooms + their conflict partners to restore
+  const allRoomsToRestore = new Set(roomIds)
+  roomIds.forEach(roomId => {
+    const conflicts = ROOM_CONFLICTS[roomId] || []
+    conflicts.forEach(c => allRoomsToRestore.add(c))
+  })
+
+  const restores = [...allRoomsToRestore].map(roomId =>
     updateDoc(doc(db, AVAILABILITY_COL, availDocId(homestayId, roomId)), {
-      booked:      false,
-      checkOutDate: null,
-      bookingId:   null,
-      restoredAt:  new Date().toISOString(),
+      booked:           false,
+      checkOutDate:     null,
+      bookingId:        null,
+      blockedByConflict: false,
+      restoredAt:       new Date().toISOString(),
     })
   )
   await Promise.all(restores)
@@ -181,9 +237,10 @@ export async function cancelBooking(bookingId, homestayId, roomIds) {
 // Manually restore a single room (admin override)
 export async function restoreRoom(homestayId, roomId) {
   await updateDoc(doc(db, AVAILABILITY_COL, availDocId(homestayId, roomId)), {
-    booked:      false,
-    checkOutDate: null,
-    bookingId:   null,
-    restoredAt:  new Date().toISOString(),
+    booked:           false,
+    checkOutDate:     null,
+    bookingId:        null,
+    blockedByConflict: false,
+    restoredAt:       new Date().toISOString(),
   })
 }
