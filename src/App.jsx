@@ -8,6 +8,7 @@ import HomePage            from "./pages/HomePage"
 import HomestayPage        from "./pages/HomestayPage"
 import WishlistPage        from "./pages/WishlistPage"
 import MomentsPage         from "./pages/MomentsPage"
+import AdminPage           from "./pages/AdminPage"
 
 // ── Inner app — has access to AuthContext ─────────────────────
 function AppInner() {
@@ -41,7 +42,7 @@ function AppInner() {
         <Route path="/wishlist"     element={<WishlistPage onLogoClick={handleLogoClick} />} />
         <Route path="/moments"      element={<MomentsPage  onLogoClick={handleLogoClick} />} />
         <Route path="/bookings"     element={<div className="min-h-screen bg-[#1C1C1C] flex items-center justify-center text-[#F8F5F0]">Bookings page coming soon</div>} />
-        <Route path="/admin"        element={<div className="min-h-screen bg-[#1C1C1C] flex items-center justify-center text-[#F8F5F0]">Admin dashboard coming soon</div>} />
+        <Route path="/admin"        element={<AdminPage />} />
       </Routes>
     </>
   )
