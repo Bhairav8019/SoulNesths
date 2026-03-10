@@ -2,7 +2,7 @@
 // ─────────────────────────────────────────────────────────────────────────────
 // Soul Nest Admin Dashboard
 // Protected by hardcoded admin phone number check via Firebase Auth.
-// Sections: Bookings, Availability, Reviews, Moments, Refunds
+// Sections: Bookings, Availability, Pricing, Reviews, Moments, Refunds
 // ─────────────────────────────────────────────────────────────────────────────
 
 import { useState, useEffect, useRef } from "react"
@@ -18,8 +18,7 @@ import {
 import { homestays } from "../data/homestays"
 
 // ── Admin phone whitelist ────────────────────────────────────
-// Add your phone number here in E.164 format
-const ADMIN_PHONES = ["+917035464202"] // ← replace with your number
+const ADMIN_PHONES = ["+917035464202"]
 
 // ── Soul Nest brand tokens ───────────────────────────────────
 const C = {
@@ -124,9 +123,7 @@ function BookingsSection() {
               <td style={{ padding: "10px 12px", color: C.green, fontWeight: 600 }}>₹{b.totalAmount?.toLocaleString()}</td>
               <td style={{ padding: "10px 12px", color: C.grey }}>₹{b.platformFee}</td>
               <td style={{ padding: "10px 12px" }}>
-                <Badge color={b.status === "confirmed" ? C.green : C.red}>
-                  {b.status}
-                </Badge>
+                <Badge color={b.status === "confirmed" ? C.green : C.red}>{b.status}</Badge>
               </td>
               <td style={{ padding: "10px 12px", color: C.dim, whiteSpace: "nowrap", fontSize: 11 }}>
                 {new Date(b.createdAt).toLocaleDateString("en-IN")}
@@ -162,15 +159,15 @@ function AvailabilitySection() {
 
   const toggle = async (roomId) => {
     setSaving(roomId)
-    const current = availability[roomId]
-    const docId   = `${HOMESTAY.id}_${roomId}`
+    const current   = availability[roomId]
+    const docId     = `${HOMESTAY.id}_${roomId}`
     const newBooked = !current.booked
     await setDoc(doc(db, "roomAvailability", docId), {
       roomId, homestayId: HOMESTAY.id,
       booked: newBooked,
-      checkOutDate: newBooked ? null : null,
-      bookingId:    newBooked ? "ADMIN_BLOCK" : null,
-      bookedAt:     newBooked ? new Date().toISOString() : null,
+      checkOutDate:      newBooked ? null : null,
+      bookingId:         newBooked ? "ADMIN_BLOCK" : null,
+      bookedAt:          newBooked ? new Date().toISOString() : null,
       blockedByConflict: false,
     })
     await fetchAll()
@@ -206,15 +203,182 @@ function AvailabilitySection() {
             {av.checkOutDate && (
               <p style={{ color: C.dim, fontSize: 11, marginBottom: 8 }}>Until: {av.checkOutDate}</p>
             )}
-            <Btn
-              onClick={() => toggle(roomId)}
-              disabled={saving === roomId}
-              danger={!booked}
-              color={C.green}
-              small
-            >
+            <Btn onClick={() => toggle(roomId)} disabled={saving === roomId} danger={!booked} color={C.green} small>
               {saving === roomId ? "…" : booked ? "Mark Available" : "Block Room"}
             </Btn>
+          </div>
+        )
+      })}
+    </div>
+  )
+}
+
+// ═══════════════════════════════════════════════════════════════
+// SECTION: Pricing Manager
+// Firestore collection: pricing/{homestayId_roomId}
+// Fields: roomId, regularPrice, discountPrice (optional), platformFee
+// HomestayPage reads this collection on load and overrides homestays.js values.
+// ═══════════════════════════════════════════════════════════════
+function PricingSection() {
+  const [prices, setPrices]   = useState({})
+  const [loading, setLoading] = useState(true)
+  const [saving, setSaving]   = useState(null)
+  const [saved, setSaved]     = useState(null)
+
+  const roomLabels = {
+    "standard":     "Standard Room",
+    "deluxe":       "Deluxe Room",
+    "premium-1bhk": "Premium 1BHK",
+    "premium-2bhk": "Premium 2BHK",
+  }
+
+  // Load current prices — Firestore first, fallback to homestays.js
+  const fetchPrices = async () => {
+    const result = {}
+    for (const room of HOMESTAY.rooms) {
+      const docId = `${HOMESTAY.id}_${room.id}`
+      const snap  = await getDoc(doc(db, "pricing", docId))
+      if (snap.exists()) {
+        result[room.id] = snap.data()
+      } else {
+        // Seed from homestays.js defaults
+        result[room.id] = {
+          roomId:        room.id,
+          homestayId:    HOMESTAY.id,
+          regularPrice:  room.regularPrice,
+          discountPrice: room.discountPrice || "",
+          platformFee:   149,
+        }
+      }
+    }
+    setPrices(result)
+    setLoading(false)
+  }
+
+  useEffect(() => { fetchPrices() }, [])
+
+  const handleChange = (roomId, field, value) => {
+    setPrices(p => ({
+      ...p,
+      [roomId]: { ...p[roomId], [field]: value === "" ? "" : Number(value) },
+    }))
+  }
+
+  const saveRoom = async (roomId) => {
+    setSaving(roomId)
+    const p     = prices[roomId]
+    const docId = `${HOMESTAY.id}_${roomId}`
+    await setDoc(doc(db, "pricing", docId), {
+      roomId,
+      homestayId:    HOMESTAY.id,
+      regularPrice:  Number(p.regularPrice) || 0,
+      discountPrice: p.discountPrice !== "" ? Number(p.discountPrice) : null,
+      platformFee:   Number(p.platformFee) || 149,
+      updatedAt:     new Date().toISOString(),
+    })
+    setSaving(null)
+    setSaved(roomId)
+    setTimeout(() => setSaved(null), 2000)
+  }
+
+  if (loading) return <p style={{ color: C.grey }}>Loading prices…</p>
+
+  return (
+    <div style={{ display: "flex", flexDirection: "column", gap: 16 }}>
+
+      {/* Platform fee note */}
+      <div style={{
+        background: C.bamboo + "11", border: `1px solid ${C.bamboo}33`,
+        borderRadius: 10, padding: "12px 16px",
+      }}>
+        <p style={{ color: C.bamboo, fontSize: 12, margin: 0 }}>
+          💡 Platform fee is charged per room selected. Changes here reflect live on the booking card.
+          Leave Discount Price blank to show only the regular price.
+        </p>
+      </div>
+
+      {HOMESTAY.rooms.map(room => {
+        const p = prices[room.id] || {}
+        return (
+          <div key={room.id} style={{
+            background: C.card2, border: `1px solid ${C.border}`,
+            borderRadius: 12, padding: "18px 20px",
+          }}>
+            <p style={{
+              color: C.white, fontWeight: 600, fontSize: 15,
+              fontFamily: "'Playfair Display', serif", marginBottom: 14,
+            }}>{roomLabels[room.id] || room.id}</p>
+
+            <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: 12, marginBottom: 14 }}>
+              <div>
+                <label style={{ color: C.grey, fontSize: 11, display: "block", marginBottom: 5 }}>
+                  Regular Price (₹/night)
+                </label>
+                <Input
+                  type="number"
+                  value={p.regularPrice ?? ""}
+                  onChange={e => handleChange(room.id, "regularPrice", e.target.value)}
+                  placeholder="e.g. 2500"
+                  style={{ width: "100%", boxSizing: "border-box" }}
+                />
+              </div>
+              <div>
+                <label style={{ color: C.grey, fontSize: 11, display: "block", marginBottom: 5 }}>
+                  Discount Price (₹/night) <span style={{ color: C.dim }}>· optional</span>
+                </label>
+                <Input
+                  type="number"
+                  value={p.discountPrice ?? ""}
+                  onChange={e => handleChange(room.id, "discountPrice", e.target.value)}
+                  placeholder="Leave blank to hide"
+                  style={{ width: "100%", boxSizing: "border-box" }}
+                />
+              </div>
+              <div>
+                <label style={{ color: C.grey, fontSize: 11, display: "block", marginBottom: 5 }}>
+                  Platform Fee (₹/room)
+                </label>
+                <Input
+                  type="number"
+                  value={p.platformFee ?? ""}
+                  onChange={e => handleChange(room.id, "platformFee", e.target.value)}
+                  placeholder="e.g. 149"
+                  style={{ width: "100%", boxSizing: "border-box" }}
+                />
+              </div>
+            </div>
+
+            {/* Preview */}
+            <div style={{
+              display: "flex", gap: 16, alignItems: "center",
+              marginBottom: 14, padding: "8px 12px",
+              background: "#ffffff06", borderRadius: 8,
+            }}>
+              <span style={{ color: C.dim, fontSize: 12 }}>Preview:</span>
+              {p.discountPrice ? (
+                <>
+                  <span style={{ color: C.dim, fontSize: 13, textDecoration: "line-through" }}>₹{p.regularPrice?.toLocaleString()}</span>
+                  <span style={{ color: C.green, fontWeight: 700, fontSize: 15 }}>₹{Number(p.discountPrice).toLocaleString()}</span>
+                  <Badge color={C.green}>
+                    {Math.round((1 - p.discountPrice / p.regularPrice) * 100)}% off
+                  </Badge>
+                </>
+              ) : (
+                <span style={{ color: C.white, fontWeight: 700, fontSize: 15 }}>₹{p.regularPrice?.toLocaleString()}</span>
+              )}
+              <span style={{ color: C.dim, fontSize: 12, marginLeft: "auto" }}>
+                Platform fee: ₹{p.platformFee}
+              </span>
+            </div>
+
+            <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
+              <Btn onClick={() => saveRoom(room.id)} disabled={saving === room.id}>
+                {saving === room.id ? "Saving…" : "Save Prices"}
+              </Btn>
+              {saved === room.id && (
+                <span style={{ color: C.green, fontSize: 12 }}>✓ Saved</span>
+              )}
+            </div>
           </div>
         )
       })}
@@ -266,7 +430,6 @@ function ReviewsSection() {
 
   return (
     <div>
-      {/* Add review form */}
       <div style={{
         background: C.card2, border: `1px solid ${C.border}`,
         borderRadius: 12, padding: 18, marginBottom: 20,
@@ -289,7 +452,6 @@ function ReviewsSection() {
         <Btn onClick={addReview} disabled={saving}>{saving ? "Saving…" : "Add Review"}</Btn>
       </div>
 
-      {/* Stats */}
       <div style={{ display: "flex", gap: 16, marginBottom: 16 }}>
         <div style={{ background: C.card2, borderRadius: 10, padding: "10px 18px", border: `1px solid ${C.border}` }}>
           <span style={{ color: C.grey, fontSize: 11 }}>Total Reviews</span>
@@ -301,7 +463,6 @@ function ReviewsSection() {
         </div>
       </div>
 
-      {/* Reviews list */}
       {loading ? <p style={{ color: C.grey }}>Loading…</p> : (
         <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
           {reviews.map(r => (
@@ -368,7 +529,6 @@ function MomentsSection() {
 
   return (
     <div>
-      {/* Add form */}
       <div style={{
         background: C.card2, border: `1px solid ${C.border}`,
         borderRadius: 12, padding: 18, marginBottom: 20,
@@ -382,7 +542,6 @@ function MomentsSection() {
         <Btn onClick={addMoment} disabled={saving}>{saving ? "Saving…" : "Add Moment"}</Btn>
       </div>
 
-      {/* Grid */}
       {loading ? <p style={{ color: C.grey }}>Loading…</p> : (
         <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(180px, 1fr))", gap: 12 }}>
           {moments.map(m => (
@@ -390,7 +549,7 @@ function MomentsSection() {
               background: C.card2, border: `1px solid ${C.border}`,
               borderRadius: 10, overflow: "hidden",
             }}>
-              <div style={{ height: 120, background: "#2a2a2a", position: "relative" }}>
+              <div style={{ height: 120, background: "#2a2a2a" }}>
                 <img src={m.url} alt={m.caption || ""}
                   style={{ width: "100%", height: "100%", objectFit: "cover" }}
                   onError={e => { e.target.style.display = "none" }}
@@ -472,17 +631,14 @@ function RefundsSection() {
                     {" "}· Cancelled: {b.cancelledAt ? new Date(b.cancelledAt).toLocaleDateString("en-IN") : "—"}
                   </p>
                 </div>
-                <Btn
-                  onClick={() => markRefunded(b.bookingId)}
-                  disabled={marking === b.bookingId}
-                  small
-                >{marking === b.bookingId ? "…" : "Mark Refunded"}</Btn>
+                <Btn onClick={() => markRefunded(b.bookingId)} disabled={marking === b.bookingId} small>
+                  {marking === b.bookingId ? "…" : "Mark Refunded"}
+                </Btn>
               </div>
             ))}
           </div>
         </>
       )}
-
       {refunded.length > 0 && (
         <>
           <p style={{ color: C.dim, fontSize: 12, marginBottom: 10 }}>Refunded ({refunded.length})</p>
@@ -513,36 +669,31 @@ function RefundsSection() {
 // MAIN: AdminPage
 // ═══════════════════════════════════════════════════════════════
 const TABS = [
-  { id: "bookings",      icon: "📋", label: "Bookings"     },
-  { id: "availability", icon: "🛏",  label: "Availability" },
-  { id: "reviews",      icon: "⭐",  label: "Reviews"      },
-  { id: "moments",      icon: "📸",  label: "Moments"      },
-  { id: "refunds",      icon: "💸",  label: "Refunds"      },
+  { id: "bookings",     icon: "📋", label: "Bookings"     },
+  { id: "availability",icon: "🛏",  label: "Availability" },
+  { id: "pricing",     icon: "💰", label: "Pricing"      },
+  { id: "reviews",     icon: "⭐",  label: "Reviews"      },
+  { id: "moments",     icon: "📸",  label: "Moments"      },
+  { id: "refunds",     icon: "💸",  label: "Refunds"      },
 ]
 
 export default function AdminPage() {
   const { currentUser } = useAuth()
   const navigate        = useNavigate()
-  const [activeTab, setActiveTab] = useState("bookings")
-  const [authorized, setAuthorized] = useState(null) // null=checking, true, false
+  const [activeTab, setActiveTab]     = useState("bookings")
+  const [authorized, setAuthorized]   = useState(null)
 
   useEffect(() => {
-    if (!currentUser) {
-      setAuthorized(false)
-      return
-    }
-    const phone = currentUser.phoneNumber
-    setAuthorized(ADMIN_PHONES.includes(phone))
+    if (!currentUser) { setAuthorized(false); return }
+    setAuthorized(ADMIN_PHONES.includes(currentUser.phoneNumber))
   }, [currentUser])
 
-  // Still checking
   if (authorized === null) return (
     <div style={{ minHeight: "100vh", background: C.bg, display: "flex", alignItems: "center", justifyContent: "center" }}>
       <p style={{ color: C.grey }}>Checking access…</p>
     </div>
   )
 
-  // Not logged in or not admin
   if (!authorized) return (
     <div style={{
       minHeight: "100vh", background: C.bg,
@@ -551,9 +702,7 @@ export default function AdminPage() {
       <p style={{ fontSize: 40 }}>🔒</p>
       <h2 style={{ color: C.white, fontFamily: "'Playfair Display', serif", margin: 0 }}>Admin Access Only</h2>
       <p style={{ color: C.grey, fontSize: 13 }}>
-        {currentUser
-          ? `${currentUser.phoneNumber} is not authorized as admin.`
-          : "Please log in with the admin phone number."}
+        {currentUser ? `${currentUser.phoneNumber} is not authorized as admin.` : "Please log in with the admin phone number."}
       </p>
       <button onClick={() => navigate("/")}
         style={{
@@ -562,8 +711,6 @@ export default function AdminPage() {
         }}>← Back to Home</button>
     </div>
   )
-
-  const refundCount = 0 // badge — could fetch live but kept simple
 
   return (
     <div style={{ minHeight: "100vh", background: C.bg, fontFamily: "'Inter', sans-serif" }}>
@@ -576,10 +723,9 @@ export default function AdminPage() {
         <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
           <span style={{ fontSize: 22 }}>🌿</span>
           <div>
-            <h1 style={{
-              fontFamily: "'Playfair Display', serif", color: C.white,
-              fontSize: 18, margin: 0, lineHeight: 1,
-            }}>Soul Nest Admin</h1>
+            <h1 style={{ fontFamily: "'Playfair Display', serif", color: C.white, fontSize: 18, margin: 0, lineHeight: 1 }}>
+              Soul Nest Admin
+            </h1>
             <p style={{ color: C.dim, fontSize: 11, margin: 0 }}>{HOMESTAY.name}</p>
           </div>
         </div>
@@ -617,36 +763,12 @@ export default function AdminPage() {
 
         {/* Main content */}
         <div style={{ flex: 1, padding: "28px 32px", overflowY: "auto" }}>
-          {activeTab === "bookings" && (
-            <>
-              <SectionHeader icon="📋" title="All Bookings" sub="Complete booking history across all rooms" />
-              <BookingsSection />
-            </>
-          )}
-          {activeTab === "availability" && (
-            <>
-              <SectionHeader icon="🛏" title="Room Availability" sub="Manually block or unblock rooms" />
-              <AvailabilitySection />
-            </>
-          )}
-          {activeTab === "reviews" && (
-            <>
-              <SectionHeader icon="⭐" title="Reviews Manager" sub="Add or remove guest reviews" />
-              <ReviewsSection />
-            </>
-          )}
-          {activeTab === "moments" && (
-            <>
-              <SectionHeader icon="📸" title="Moments Photos" sub="Manage photos shown in the Moments section" />
-              <MomentsSection />
-            </>
-          )}
-          {activeTab === "refunds" && (
-            <>
-              <SectionHeader icon="💸" title="Refund Alerts" sub="Cancelled bookings requiring platform fee refund" />
-              <RefundsSection />
-            </>
-          )}
+          {activeTab === "bookings"     && <><SectionHeader icon="📋" title="All Bookings"      sub="Complete booking history across all rooms" /><BookingsSection /></>}
+          {activeTab === "availability" && <><SectionHeader icon="🛏" title="Room Availability" sub="Manually block or unblock rooms" /><AvailabilitySection /></>}
+          {activeTab === "pricing"      && <><SectionHeader icon="💰" title="Pricing Manager"   sub="Update room prices and platform fee — changes go live immediately" /><PricingSection /></>}
+          {activeTab === "reviews"      && <><SectionHeader icon="⭐" title="Reviews Manager"   sub="Add or remove guest reviews" /><ReviewsSection /></>}
+          {activeTab === "moments"      && <><SectionHeader icon="📸" title="Moments Photos"    sub="Manage photos shown in the Moments section" /><MomentsSection /></>}
+          {activeTab === "refunds"      && <><SectionHeader icon="💸" title="Refund Alerts"     sub="Cancelled bookings requiring platform fee refund" /><RefundsSection /></>}
         </div>
       </div>
     </div>
