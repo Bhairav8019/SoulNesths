@@ -1,12 +1,7 @@
 // src/firebase.js
-// ─────────────────────────────────────────────────────────────────────────────
-// Firebase initialization — Soul Nest Homestays
-// Exports: db (Firestore), auth (Firebase Auth)
-// ─────────────────────────────────────────────────────────────────────────────
-
-import { initializeApp }                        from "firebase/app"
-import { getFirestore }                          from "firebase/firestore"
-import { getAuth, RecaptchaVerifier }            from "firebase/auth"
+import { initializeApp }             from "firebase/app"
+import { getFirestore }              from "firebase/firestore"
+import { getAuth, RecaptchaVerifier } from "firebase/auth"
 
 const firebaseConfig = {
   apiKey:            import.meta.env.VITE_FIREBASE_API_KEY,
@@ -17,14 +12,19 @@ const firebaseConfig = {
   appId:             import.meta.env.VITE_FIREBASE_APP_ID,
 }
 
+// ── TEMPORARY DEBUG — remove after confirming key loads ──────
+console.log("🔥 Firebase config check:", {
+  apiKey:    firebaseConfig.apiKey    ? firebaseConfig.apiKey.slice(0,8) + "..." : "❌ UNDEFINED",
+  authDomain: firebaseConfig.authDomain || "❌ UNDEFINED",
+  projectId:  firebaseConfig.projectId  || "❌ UNDEFINED",
+})
+// ─────────────────────────────────────────────────────────────
+
 const app = initializeApp(firebaseConfig)
 
 export const db   = getFirestore(app)
 export const auth = getAuth(app)
 
-// ── Invisible reCAPTCHA verifier ──────────────────────────────
-// Clears any existing instance before creating a new one.
-// Call once before signInWithPhoneNumber.
 export function createRecaptchaVerifier(containerId = "recaptcha-container") {
   if (window.recaptchaVerifier) {
     try { window.recaptchaVerifier.clear() } catch (_) {}
