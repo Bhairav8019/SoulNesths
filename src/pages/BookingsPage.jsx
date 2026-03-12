@@ -22,8 +22,8 @@ import {
 import Navbar from "../components/Navbar"
 
 // ── Owner contact — replace with real number ─────────────────
-const OWNER_WHATSAPP = "919999999999"  // ← replace with real WhatsApp number (no +)
-const OWNER_PHONE    = "+91 99999 99999"
+const OWNER_WHATSAPP = "917002316152"  // ← replace with real WhatsApp number (no +)
+const OWNER_PHONE    = "+91 91274 04991"
 
 // ── Brand tokens ─────────────────────────────────────────────
 const C = {
