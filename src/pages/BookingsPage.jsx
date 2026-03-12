@@ -42,19 +42,19 @@ const C = {
 // ── Nest Escapes data (mirrors HomestayPage) ─────────────────
 const nestEscapes = [
   {
-    icon: "🚗",
+    icon: "/hangout.jpg",
     title: "Hangout",
     desc: "Explore Jorhat and beyond with self-drive or chauffeur options.",
     tag: "On Request",
   },
   {
-    icon: "👨‍🍳",
+    icon: "/chefondemand.jpg",
     title: "Chef on Demand",
     desc: "Authentic Assamese cuisine delivered fresh to your room.",
     tag: "On Order",
   },
   {
-    icon: "🎶",
+    icon: "/orchestraanddj.jpg",
     title: "Orchestra & DJ",
     desc: "Live music and DJ nights for celebrations and special evenings.",
     tag: "On Request",
@@ -333,17 +333,12 @@ export default function BookingsPage({ onLogoClick }) {
   const [cancelling, setCancelling]   = useState(false)
   const [activeTab, setActiveTab]     = useState("upcoming") // "upcoming" | "past"
 
-  // Fetch bookings for this user's phone number
   useEffect(() => {
     if (!currentUser) { setLoading(false); return }
-    const phone = currentUser.phoneNumber
     ;(async () => {
       try {
-        // Fetch all bookings — filter client-side by guestContact matching phone
-        // Phase 4: store userId on booking doc and query by userId instead
         const snap = await getDocs(collection(db, "bookings"))
         const all  = snap.docs.map(d => ({ id: d.id, ...d.data() }))
-        // Show all bookings for now (Phase 4: filter by userId)
         setBookings(all.sort((a, b) => new Date(b.createdAt) - new Date(a.createdAt)))
       } catch (err) {
         console.error("Failed to fetch bookings:", err)
@@ -377,17 +372,15 @@ export default function BookingsPage({ onLogoClick }) {
     }
   }
 
-  // Split into upcoming and past
-  const upcoming = bookings.filter(b => b.status !== "cancelled" && hoursUntilCheckIn(b.checkIn) > 0)
-  const past     = bookings.filter(b => b.status === "cancelled" || hoursUntilCheckIn(b.checkIn) <= 0)
+  const upcoming  = bookings.filter(b => b.status !== "cancelled" && hoursUntilCheckIn(b.checkIn) > 0)
+  const past      = bookings.filter(b => b.status === "cancelled" || hoursUntilCheckIn(b.checkIn) <= 0)
   const displayed = activeTab === "upcoming" ? upcoming : past
 
-  // ── Not logged in ─────────────────────────────────────────
   if (!currentUser && !loading) return (
     <div style={{ minHeight: "100vh", background: C.bg, fontFamily: "'Inter', sans-serif" }}>
       <Navbar onLogoClick={onLogoClick} />
       <div style={{
-        paddingTop: 100, display: "flex", flexDirection: "column",
+        display: "flex", flexDirection: "column",
         alignItems: "center", justifyContent: "center", gap: 16, padding: "100px 16px 40px",
       }}>
         <p style={{ fontSize: 48 }}>🔐</p>
@@ -425,7 +418,6 @@ export default function BookingsPage({ onLogoClick }) {
 
       <div style={{ maxWidth: 640, margin: "0 auto", padding: "88px 16px 48px" }}>
 
-        {/* Header */}
         <div style={{ display: "flex", alignItems: "center", gap: 12, marginBottom: 24 }}>
           <button onClick={() => navigate("/")} style={{
             background: "none", border: "none", color: C.grey,
@@ -435,17 +427,13 @@ export default function BookingsPage({ onLogoClick }) {
             <ArrowLeft size={16} /> Back
           </button>
           <div style={{ flex: 1 }}>
-            <h1 style={{
-              fontFamily: "'Playfair Display', serif",
-              color: C.white, fontSize: 22, margin: 0,
-            }}>My Bookings</h1>
-            <p style={{ color: C.grey, fontSize: 12, margin: 0 }}>
-              {currentUser?.phoneNumber}
-            </p>
+            <h1 style={{ fontFamily: "'Playfair Display', serif", color: C.white, fontSize: 22, margin: 0 }}>
+              My Bookings
+            </h1>
+            <p style={{ color: C.grey, fontSize: 12, margin: 0 }}>{currentUser?.phoneNumber}</p>
           </div>
         </div>
 
-        {/* Tabs */}
         <div style={{
           display: "flex", gap: 0, marginBottom: 20,
           background: C.card, borderRadius: 12, border: `1px solid ${C.border}`,
@@ -466,14 +454,12 @@ export default function BookingsPage({ onLogoClick }) {
           ))}
         </div>
 
-        {/* Bookings list */}
         {loading ? (
           <div style={{ textAlign: "center", padding: "48px 0" }}>
             <div style={{
               width: 32, height: 32, border: `2px solid ${C.border}`,
               borderTop: `2px solid ${C.green}`, borderRadius: "50%",
-              margin: "0 auto 12px",
-              animation: "spin 0.8s linear infinite",
+              margin: "0 auto 12px", animation: "spin 0.8s linear infinite",
             }} />
             <p style={{ color: C.grey, fontSize: 13 }}>Loading bookings…</p>
           </div>
@@ -505,20 +491,16 @@ export default function BookingsPage({ onLogoClick }) {
           ))
         )}
 
-        {/* ── Nest Escapes enquiry section ── */}
         {upcoming.length > 0 && (
           <>
             <div style={{ borderTop: `1px solid ${C.border}`, margin: "28px 0" }} />
-
             <div style={{ marginBottom: 8 }}>
-              <h2 style={{
-                fontFamily: "'Playfair Display', serif",
-                color: C.white, fontSize: 19, margin: "0 0 4px",
-              }}>Nest Escapes</h2>
+              <h2 style={{ fontFamily: "'Playfair Display', serif", color: C.white, fontSize: 19, margin: "0 0 4px" }}>
+                Nest Escapes
+              </h2>
               <p style={{ color: C.grey, fontSize: 12, margin: "0 0 16px" }}>
                 Curated add-ons for your stay — enquire directly with the owner
               </p>
-
               <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
                 {nestEscapes.map((e, i) => (
                   <div key={i} style={{
@@ -527,7 +509,8 @@ export default function BookingsPage({ onLogoClick }) {
                     display: "flex", alignItems: "center", justifyContent: "space-between", gap: 12,
                   }}>
                     <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
-                      <span style={{ fontSize: 28 }}>{e.icon}</span>
+                      <img src={e.icon} alt={e.title}
+                        style={{ width: 56, height: 56, borderRadius: 10, objectFit: "cover", flexShrink: 0 }} />
                       <div>
                         <p style={{ color: C.white, fontWeight: 600, fontSize: 14, margin: "0 0 2px",
                           fontFamily: "'Playfair Display', serif" }}>{e.title}</p>
@@ -555,7 +538,6 @@ export default function BookingsPage({ onLogoClick }) {
                 ))}
               </div>
 
-              {/* Direct call option */}
               <div style={{
                 marginTop: 14, background: C.card2,
                 border: `1px solid ${C.border}`, borderRadius: 14,
@@ -563,12 +545,8 @@ export default function BookingsPage({ onLogoClick }) {
                 alignItems: "center", justifyContent: "space-between",
               }}>
                 <div>
-                  <p style={{ color: C.white, fontSize: 13, fontWeight: 600, margin: "0 0 2px" }}>
-                    Prefer to call?
-                  </p>
-                  <p style={{ color: C.grey, fontSize: 12, margin: 0 }}>
-                    Reach the owner directly at {OWNER_PHONE}
-                  </p>
+                  <p style={{ color: C.white, fontSize: 13, fontWeight: 600, margin: "0 0 2px" }}>Prefer to call?</p>
+                  <p style={{ color: C.grey, fontSize: 12, margin: 0 }}>Reach the owner directly at {OWNER_PHONE}</p>
                 </div>
                 <a href={`tel:${OWNER_PHONE.replace(/\s/g, "")}`} style={{
                   background: C.bamboo + "22", color: C.bamboo,
@@ -583,7 +561,6 @@ export default function BookingsPage({ onLogoClick }) {
           </>
         )}
 
-        {/* Help footer */}
         <div style={{
           marginTop: 28, background: C.card,
           border: `1px solid ${C.border}`, borderRadius: 16,
