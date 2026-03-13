@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react"
+import { useState, useEffect, useRef } from "react"
 import { useParams, useNavigate, useLocation } from "react-router-dom"
 import { homestays } from "../data/homestays"
 import { useWishlist } from "../context/WishlistContext"
@@ -13,6 +13,7 @@ import {
   fetchRoomAvailability,
   checkAndRestoreExpiredRooms,
   confirmBookingInFirestore,
+  resolveRoomKey,
 } from "../data/roomAvailability"
 
 const amenities = [
@@ -73,7 +74,6 @@ function hoursUntilCheckIn(checkInStr) {
   const checkInDate = new Date(checkInStr + "T00:00:00")
   return (checkInDate - new Date()) / 3600000
 }
-
 
 // ── Phone validation — Indian & international ─────────────────
 function validatePhone(raw) {
@@ -265,7 +265,6 @@ function SummaryRows({ h, selectedRooms, checkIn, checkOut, guests, nights, show
           <span className="text-[#F8F5F0] text-xs">{guestDetails.contact}</span>
         </div>
       )}
-      {/* Rooms — one line each */}
       {selectedRooms.map((r, i) => (
         <div key={r.id} className="flex justify-between">
           <span className="text-[#9a9a9a] text-xs">{i === 0 ? "Room" : `Room ${i + 1}`}</span>
@@ -293,7 +292,6 @@ function SummaryRows({ h, selectedRooms, checkIn, checkOut, guests, nights, show
         <span className="text-[#F8F5F0] text-xs">{nights} {nights === 1 ? "Night" : "Nights"}</span>
       </div>
       <div className="border-t border-[#3a3a3a] pt-2 mt-1 flex flex-col gap-1.5">
-        {/* Per-room price lines */}
         {selectedRooms.map(r => {
           const p = r.discountPrice ?? r.regularPrice
           return (
@@ -339,7 +337,7 @@ function SummaryRows({ h, selectedRooms, checkIn, checkOut, guests, nights, show
   )
 }
 
-// ── POPUP A — Platform fee + Razorpay (booking > 72hrs before check-in) ──
+// ── POPUP A — Platform fee + Razorpay ─────────────────────────
 function BookingConfirmPopupFee({ h, selectedRooms, scaledFee, checkIn, checkOut, guests, nights, guestDetails, onClose, onPay }) {
   const [seconds, setSeconds] = useState(600)
   useEffect(() => {
@@ -370,17 +368,14 @@ function BookingConfirmPopupFee({ h, selectedRooms, scaledFee, checkIn, checkOut
         <p className="text-[#9a9a9a] text-xs mb-4">
           Summary expires in <span className={`font-semibold ${timerColor}`}>{mins}:{secs}</span>. Complete payment before the timer runs out.
         </p>
-
         <SummaryRows h={h} selectedRooms={selectedRooms} scaledFee={scaledFee} checkIn={checkIn} checkOut={checkOut}
           guests={guests} nights={nights} showFee={true} guestDetails={guestDetails} />
-
         <div className="mt-3 bg-[#2D5A3D]/10 border border-[#2D5A3D]/30 rounded-xl px-3 py-2.5">
           <p className="text-[#2D5A3D] text-xs font-medium">🛡️ Full refund policy</p>
           <p className="text-[#9a9a9a] text-xs mt-0.5">
             Platform fee fully refunded if cancelled before 48 hrs of check-in (00:00). No questions asked.
           </p>
         </div>
-
         <p className="text-[#9a9a9a] text-xs text-center mt-3 mb-3">
           You will be redirected to Razorpay to complete your booking securely.
         </p>
@@ -398,7 +393,7 @@ function BookingConfirmPopupFee({ h, selectedRooms, scaledFee, checkIn, checkOut
   )
 }
 
-// ── POPUP B — Direct booking (within 72hrs of check-in) ──────
+// ── POPUP B — Direct booking (within 72hrs) ───────────────────
 function BookingConfirmPopupDirect({ h, selectedRooms, checkIn, checkOut, guests, nights, guestDetails, onClose, onConfirm }) {
   const roomsSubtotal = selectedRooms.reduce((sum, r) => sum + (r.discountPrice ?? r.regularPrice) * nights, 0)
   return (
@@ -415,24 +410,20 @@ function BookingConfirmPopupDirect({ h, selectedRooms, checkIn, checkOut, guests
             No Payment Now
           </span>
         </div>
-
         <div className="bg-[#1a2a1a] border border-[#2D5A3D]/40 rounded-xl px-3 py-2.5 mb-4">
           <p className="text-[#2D5A3D] text-xs font-semibold">⚡ Last-minute booking</p>
           <p className="text-[#9a9a9a] text-xs mt-0.5">
             Your check-in is within 72 hours — no platform fee is charged. Full amount paid directly at the homestay on arrival.
           </p>
         </div>
-
         <SummaryRows h={h} selectedRooms={selectedRooms} checkIn={checkIn} checkOut={checkOut}
           guests={guests} nights={nights} showFee={false} guestDetails={guestDetails} />
-
         <div className="mt-3 bg-[#8B6914]/10 border border-[#8B6914]/30 rounded-xl px-3 py-2.5">
           <p className="text-[#8B6914] text-xs font-medium">💰 Pay at homestay on arrival</p>
           <p className="text-[#9a9a9a] text-xs mt-0.5">
             Full amount of ₹{roomsSubtotal} to be paid in cash or UPI directly to the homestay on check-in.
           </p>
         </div>
-
         <p className="text-[#9a9a9a] text-xs text-center mt-3 mb-3">
           Booking confirmation and owner contact will be shared via SMS, Email & WhatsApp immediately.
         </p>
@@ -510,46 +501,43 @@ export default function HomestayPage({ onLogoClick }) {
     return d.toISOString().split("T")[0]
   }
 
-  const [checkIn, setCheckIn] = useState(parseSearchDate(searchData.checkIn) || "")
+  const [checkIn, setCheckIn]   = useState(parseSearchDate(searchData.checkIn) || "")
   const [checkOut, setCheckOut] = useState(parseSearchDate(searchData.checkOut) || "")
-  const [guests, setGuests] = useState(searchData.guests ? parseInt(searchData.guests) : 1)
+  const [guests, setGuests]     = useState(searchData.guests ? parseInt(searchData.guests) : 1)
 
   const hasSearchData = !!(checkIn || checkOut || (guests && guests > 1))
-  const [selectedRooms, setSelectedRooms] = useState([])
+  const [selectedRooms, setSelectedRooms]     = useState([])
   const [showLoginPrompt, setShowLoginPrompt] = useState(false)
-  const [showFeePopup, setShowFeePopup] = useState(false)
+  const [showFeePopup, setShowFeePopup]       = useState(false)
   const [showDirectPopup, setShowDirectPopup] = useState(false)
   const [showNestEscapes, setShowNestEscapes] = useState(false)
-  const [selectedEscape, setSelectedEscape] = useState(null)
+  const [selectedEscape, setSelectedEscape]   = useState(null)
   const { toggleWishlist, isWishlisted } = useWishlist()
 
-  // ── Date highlight — pulses amber when user taps Reserve without dates ──
   const [highlightDates, setHighlightDates] = useState(false)
 
-  // ── Guest details flow ───────────────────────────────────────
   const [showGuestPopup, setShowGuestPopup]  = useState(false)
-  const [pendingBookingType, setPendingType] = useState(null)   // "fee" | "direct"
+  const [pendingBookingType, setPendingType] = useState(null)
   const [guestDetails, setGuestDetails]      = useState(null)
 
-  // ── Live availability from Firestore ─────────────────────────
-  // Map<roomId, { booked, checkOutDate, bookingId }>
-  // Starts as empty map → rooms default available until Firestore responds.
-  // Phase 4 admin: this same map is what the admin dashboard reads/writes.
-  const [liveAvailability, setLiveAvailability] = useState(new Map())
+  // ── Live availability ─────────────────────────────────────────
+  const [liveAvailability, setLiveAvailability]     = useState(new Map())
   const [availabilityLoading, setAvailabilityLoading] = useState(true)
 
+  // ── Re-fetch availability whenever homestay, checkIn, or checkOut changes ──
+  // This is the core fix: passing checkIn+checkOut to fetchRoomAvailability
+  // so Firestore range-overlap check runs with the user's actual chosen dates.
   useEffect(() => {
     if (!h) return
     const roomIds = h.rooms.map(r => r.id)
+    setAvailabilityLoading(true)
     ;(async () => {
       try {
-        // 1. Auto-restore any rooms whose checkout date has passed (00:00 today)
         await checkAndRestoreExpiredRooms(h.id, roomIds)
-        // 2. Fetch fresh availability after potential restores
-        const availability = await fetchRoomAvailability(h.id, roomIds)
+        // Pass checkIn + checkOut so overlap check is date-aware
+        const availability = await fetchRoomAvailability(h.id, roomIds, checkIn || undefined, checkOut || undefined)
         setLiveAvailability(availability)
       } catch (err) {
-        // Firebase not yet configured or offline — fall back to static booked flag
         console.warn("Firestore unavailable, falling back to static room data:", err.message)
         const fallback = new Map()
         h.rooms.forEach(r => fallback.set(r.id, { booked: r.booked ?? false, checkOutDate: null, bookingId: null }))
@@ -558,60 +546,62 @@ export default function HomestayPage({ onLogoClick }) {
         setAvailabilityLoading(false)
       }
     })()
-  }, [h?.id])
+  }, [h?.id, checkIn, checkOut]) // ← re-runs when dates change
 
   useEffect(() => {
     if (checkIn && checkOut) setHighlightDates(false)
   }, [checkIn, checkOut])
 
-  // ── Multi-room helpers ───────────────────────────────────────
-  const primaryRoom = selectedRooms[0] || null
-  const combinedMaxGuests = selectedRooms.reduce((sum, r) => sum + r.maxGuests, 0)
-  const atPropertyCap = h ? selectedRooms.reduce((sum, r) => sum + r.maxGuests, 0) >= h.totalMaxGuests : false
+  const primaryRoom        = selectedRooms[0] || null
+  const combinedMaxGuests  = selectedRooms.reduce((sum, r) => sum + r.maxGuests, 0)
+  const atPropertyCap      = h ? selectedRooms.reduce((sum, r) => sum + r.maxGuests, 0) >= h.totalMaxGuests : false
 
-  // ── Availability + conflict logic ────────────────────────────
-  // A room is unavailable if:
-  //   1. Firestore says booked: true (live, cross-user), OR
-  //   2. Static fallback room.booked === true (pre-Firebase), OR
-  //   3. It conflicts with a currently selected room
-  // Phase 4 admin: flip booked in Firestore → reflects here in real-time
-  //   (swap fetchRoomAvailability for onSnapshot for instant updates).
+  // ── Unavailable rooms: booked for chosen dates OR alias conflict ──
+  // resolveRoomKey ensures "standard" and "premium-2bhk" share the same
+  // availability entry — selecting one won't falsely block the other.
   const unavailableRoomIds = new Set(
     h ? h.rooms
       .filter(r => {
-        const live = liveAvailability.get(r.id)
+        const key  = resolveRoomKey(r.id)
+        // Check canonical key first, then fall back to original id
+        const live = liveAvailability.get(key) ?? liveAvailability.get(r.id)
         const isBooked = live ? live.booked : (r.booked ?? false)
         if (isBooked) return true
-        return selectedRooms.some(sel => sel.conflictsWith?.includes(r.id))
+        // Block alias twin if already selected (same physical room)
+        return selectedRooms.some(sel =>
+          sel.id !== r.id && resolveRoomKey(sel.id) === resolveRoomKey(r.id)
+        )
       })
       .map(r => r.id)
     : []
   )
 
-  // Helper: why is this room unavailable? (for UI label)
   const unavailableReason = (room) => {
-    const live = liveAvailability.get(room.id)
+    const key  = resolveRoomKey(room.id)
+    const live = liveAvailability.get(key) ?? liveAvailability.get(room.id)
     const isBooked = live ? live.booked : (room.booked ?? false)
     if (isBooked) {
-      if (live?.checkOutDate) {
-        const d = new Date(live.checkOutDate)
+      if (live?.nextAvailable) {
+        const d = new Date(live.nextAvailable)
         const label = d.toLocaleDateString("en-IN", { day: "2-digit", month: "short" })
         return `Booked · Available from ${label}`
       }
-      return "Currently booked"
+      return checkIn && checkOut
+        ? "Unavailable for selected dates"
+        : "Currently booked"
     }
-    const blocker = selectedRooms.find(sel => sel.conflictsWith?.includes(room.id))
-    if (blocker) return `Unavailable with ${blocker.name}`
+    const aliasTwin = selectedRooms.find(
+      sel => sel.id !== room.id && resolveRoomKey(sel.id) === resolveRoomKey(room.id)
+    )
+    if (aliasTwin) return `Same room as ${aliasTwin.name}`
     return "Unavailable"
   }
 
-  // Rooms not yet selected AND not unavailable (for "Add another room" panel)
   const availableToAdd = h
     ? h.rooms.filter(r => !selectedRooms.find(s => s.id === r.id) && !unavailableRoomIds.has(r.id))
     : []
 
   const toggleRoom = (room) => {
-    // Block if unavailable
     if (unavailableRoomIds.has(room.id)) return
     setSelectedRooms(prev => {
       const exists = prev.find(r => r.id === room.id)
@@ -633,6 +623,8 @@ export default function HomestayPage({ onLogoClick }) {
     setCheckIn(value)
     setHighlightDates(false)
     if (checkOut && checkOut < value) setCheckOut("")
+    // Deselect rooms that become unavailable after date change
+    setSelectedRooms([])
   }
 
   const handleCheckOutChange = (value) => {
@@ -640,6 +632,8 @@ export default function HomestayPage({ onLogoClick }) {
     if (!checkIn && value <= getTodayDate()) return
     setCheckOut(value)
     setHighlightDates(false)
+    // Deselect rooms that become unavailable after date change
+    setSelectedRooms([])
   }
 
   if (!h) return (
@@ -659,14 +653,10 @@ export default function HomestayPage({ onLogoClick }) {
     return sum + (r.discountPrice ?? r.regularPrice) * nights
   }, 0)
 
-  // ── Platform fee scales with room count ──────────────────────
-  const scaledFee = h.platformFee * selectedRooms.length   // ₹149 × rooms
+  const scaledFee = h.platformFee * selectedRooms.length
 
-  // ── 72hr gate ────────────────────────────────────────────────
-  // Direct (no-fee) mode: ONLY when check-in ≤ 72hrs AND exactly 1 room
-  // Multi-room within 72hrs → still requires scaled fee payment
-  const hrs = hoursUntilCheckIn(checkIn)
-  const isWithin72 = checkIn && hrs <= 72
+  const hrs         = hoursUntilCheckIn(checkIn)
+  const isWithin72  = checkIn && hrs <= 72
   const isDirectMode = isWithin72 && selectedRooms.length === 1
 
   const handleReserve = () => {
@@ -687,13 +677,12 @@ export default function HomestayPage({ onLogoClick }) {
     else setShowFeePopup(true)
   }
 
-  // ── Shared post-confirm: write to Firestore + update local state ──
   const finaliseBooking = async () => {
     if (!checkIn || !checkOut) return
     try {
       const bookingId = await confirmBookingInFirestore({
         homestayId:  h.id,
-        roomIds:     selectedRooms.map(r => r.id),
+        roomIds:     selectedRooms.map(r => resolveRoomKey(r.id)),
         checkIn,
         checkOut,
         guests,
@@ -701,11 +690,13 @@ export default function HomestayPage({ onLogoClick }) {
         totalAmount: subtotal,
         platformFee: scaledFee,
       })
-      // Update local availability map immediately so UI reflects without refetch
+      // Immediately reflect in local state so UI updates without refetch
       setLiveAvailability(prev => {
         const next = new Map(prev)
         selectedRooms.forEach(r => {
-          next.set(r.id, { booked: true, checkOutDate: checkOut, bookingId })
+          const key = resolveRoomKey(r.id)
+          next.set(key,  { booked: true, nextAvailable: checkOut, bookingId })
+          next.set(r.id, { booked: true, nextAvailable: checkOut, bookingId })
         })
         return next
       })
@@ -717,10 +708,8 @@ export default function HomestayPage({ onLogoClick }) {
     }
   }
 
-  // Phase 4: Razorpay onSuccess callback calls finaliseBooking() then redirects
   const handlePay = async () => {
     setShowFeePopup(false)
-    // TODO Phase 4: open Razorpay, await payment success, then call finaliseBooking()
     const bookingId = await finaliseBooking()
     if (bookingId) {
       alert(`Booking confirmed! ID: ${bookingId}\n\nRazorpay integration coming in Phase 4.`)
@@ -746,6 +735,7 @@ export default function HomestayPage({ onLogoClick }) {
           0%, 100% { box-shadow: 0 0 0 4px rgba(139,105,20,0.18); }
           50%       { box-shadow: 0 0 0 8px rgba(139,105,20,0.38); }
         }
+        @keyframes spin { to { transform: rotate(360deg); } }
       `}</style>
       <Navbar onLogoClick={onLogoClick} />
 
@@ -755,7 +745,6 @@ export default function HomestayPage({ onLogoClick }) {
           onConfirm={handleGuestConfirmed}
         />
       )}
-
       {showLoginPrompt && <LoginPromptPopup onClose={() => { setShowLoginPrompt(false); openLogin() }} />}
       {showFeePopup && selectedRooms.length > 0 && (
         <BookingConfirmPopupFee h={h} selectedRooms={selectedRooms} scaledFee={scaledFee}
@@ -781,9 +770,7 @@ export default function HomestayPage({ onLogoClick }) {
               className="text-[#F8F5F0] text-2xl font-bold mb-3">{selectedEscape.title}</h3>
             <p className="text-[#9a9a9a] text-sm mb-4 leading-relaxed">{selectedEscape.message}</p>
             <div className="bg-[#8B6914]/10 border border-[#8B6914]/30 rounded-xl px-4 py-3 mb-6">
-              <p className="text-[#8B6914] text-xs font-semibold leading-relaxed">
-                {selectedEscape.cta}
-              </p>
+              <p className="text-[#8B6914] text-xs font-semibold leading-relaxed">{selectedEscape.cta}</p>
             </div>
             <div className="w-16 h-1 rounded-full bg-gradient-to-r from-[#2D5A3D] to-[#8B6914] mx-auto mb-6" />
             <button onClick={() => { setShowNestEscapes(false); setSelectedEscape(null) }}
@@ -897,12 +884,12 @@ export default function HomestayPage({ onLogoClick }) {
             <div className="flex-1">
               <p className="text-[#8B6914] font-semibold text-sm mb-2">✦ Your Search Details Applied</p>
               <div className="flex flex-wrap gap-3 text-xs text-[#F8F5F0]">
-                {checkIn && <div>📅 {new Date(checkIn).toLocaleDateString("en-IN", { day: "2-digit", month: "short", year: "2-digit" })}</div>}
+                {checkIn  && <div>📅 {new Date(checkIn).toLocaleDateString("en-IN",  { day: "2-digit", month: "short", year: "2-digit" })}</div>}
                 {checkOut && <div>→ {new Date(checkOut).toLocaleDateString("en-IN", { day: "2-digit", month: "short", year: "2-digit" })}</div>}
                 {guests > 1 && <div>👥 {guests} Guests</div>}
               </div>
             </div>
-            <button onClick={() => { setCheckIn(""); setCheckOut(""); setGuests(1) }}
+            <button onClick={() => { setCheckIn(""); setCheckOut(""); setGuests(1); setSelectedRooms([]) }}
               className="flex-shrink-0 text-[#9a9a9a] hover:text-[#F8F5F0] transition text-xs underline ml-4">Clear</button>
           </div>
         )}
@@ -920,6 +907,11 @@ export default function HomestayPage({ onLogoClick }) {
               </span>
             )}
           </div>
+          {checkIn && checkOut && (
+            <p className="text-[#8B6914] text-xs mb-2 font-medium">
+              ✦ Showing availability for {new Date(checkIn).toLocaleDateString("en-IN", { day: "2-digit", month: "short" })} → {new Date(checkOut).toLocaleDateString("en-IN", { day: "2-digit", month: "short" })}
+            </p>
+          )}
           <p className="text-[#9a9a9a] text-xs mb-3">Tap to select · Tap again to deselect · Add multiple rooms for larger groups</p>
           <div className="flex flex-col gap-3">
             {h.rooms.map(room => {
@@ -964,7 +956,9 @@ export default function HomestayPage({ onLogoClick }) {
                       )}
                     </div>
                     <div className="text-right flex-shrink-0 ml-3">
-                      <p className={`font-bold text-base ${isUnavailable ? "text-[#4a4a4a]" : "text-[#F8F5F0]"}`}>₹{room.discountPrice ?? room.regularPrice}</p>
+                      <p className={`font-bold text-base ${isUnavailable ? "text-[#4a4a4a]" : "text-[#F8F5F0]"}`}>
+                        ₹{room.discountPrice ?? room.regularPrice}
+                      </p>
                       <p className={`text-xs ${isUnavailable ? "text-[#4a4a4a]" : "text-[#9a9a9a]"}`}>/ night</p>
                     </div>
                   </div>
@@ -986,7 +980,6 @@ export default function HomestayPage({ onLogoClick }) {
         {selectedRooms.length > 0 && (
           <div className="bg-[#2a2a2a] rounded-3xl border border-[#3a3a3a] p-5 shadow-xl mb-8">
 
-            {/* ── Selected rooms summary strip ── */}
             <div className="mb-4">
               <div className="flex items-center justify-between mb-2">
                 <p style={{ fontFamily: "'Playfair Display', serif" }}
@@ -1016,7 +1009,6 @@ export default function HomestayPage({ onLogoClick }) {
               )}
             </div>
 
-            {/* ── Add another room prompt (if rooms still available and not at property cap) ── */}
             {availableToAdd.length > 0 && !atPropertyCap && (
               <div className="bg-[#1C1C1C] border border-dashed border-[#3a3a3a] rounded-2xl px-3 py-3 mb-4">
                 <p className="text-[#8B6914] text-xs font-medium mb-2 flex items-center gap-1">
@@ -1048,7 +1040,7 @@ export default function HomestayPage({ onLogoClick }) {
               </div>
             )}
 
-            {/* Dates — id for scroll-into-view on missing date */}
+            {/* Dates */}
             <div id="booking-dates" className="grid grid-cols-2 gap-3 mb-4">
               <div className="bg-[#1C1C1C] rounded-2xl px-4 py-3 transition-all duration-200"
                 style={highlightDates && !checkIn
@@ -1084,7 +1076,7 @@ export default function HomestayPage({ onLogoClick }) {
               </div>
             )}
 
-            {/* Guests — capped by combinedMaxGuests */}
+            {/* Guests */}
             <div className="bg-[#1C1C1C] rounded-2xl px-4 py-3 border border-[#3a3a3a] mb-5">
               <p className="text-[#8B6914] text-xs font-medium mb-2 flex items-center gap-1">
                 <Users size={11} /> Guests
@@ -1120,7 +1112,6 @@ export default function HomestayPage({ onLogoClick }) {
                 )
               })}
               {isDirectMode ? (
-                // Single room + within 72hrs → no fee
                 <>
                   <div className="flex justify-between text-sm text-[#9a9a9a] italic">
                     <span>Pay at homestay on arrival</span>
@@ -1133,7 +1124,6 @@ export default function HomestayPage({ onLogoClick }) {
                   </div>
                 </>
               ) : (
-                // Fee mode — scaled by room count
                 <>
                   <div className="flex justify-between text-sm">
                     <span className="text-[#9a9a9a]">
@@ -1154,9 +1144,8 @@ export default function HomestayPage({ onLogoClick }) {
               )}
             </div>
 
-            {/* ── THE BUTTON — three states ── */}
+            {/* Buttons */}
             {isDirectMode ? (
-              // State 1: single room + within 72hrs → free booking
               <>
                 <div className="bg-[#1a2a1a] border border-[#2D5A3D]/40 rounded-xl px-3 py-2 mb-3">
                   <p className="text-[#2D5A3D] text-xs font-semibold">⚡ Last-minute booking</p>
@@ -1175,7 +1164,6 @@ export default function HomestayPage({ onLogoClick }) {
                 </p>
               </>
             ) : isWithin72 && selectedRooms.length > 1 ? (
-              // State 2: multiple rooms + within 72hrs → fee still required
               <>
                 <div className="bg-[#2a1a0a] border border-[#8B6914]/40 rounded-xl px-3 py-2 mb-3">
                   <p className="text-[#8B6914] text-xs font-semibold">⚡ Last-minute · Multi-room booking</p>
@@ -1193,7 +1181,6 @@ export default function HomestayPage({ onLogoClick }) {
                 </p>
               </>
             ) : (
-              // State 3: standard booking (> 72hrs, any number of rooms)
               <>
                 <button onClick={handleReserve}
                   className="w-full bg-[#2D5A3D] text-white py-4 rounded-2xl font-semibold text-base hover:bg-[#8B6914] transition shadow-lg"
@@ -1225,12 +1212,9 @@ export default function HomestayPage({ onLogoClick }) {
                 style={{ background: "transparent" }}>
                 <div className="w-full h-48 flex items-center justify-center overflow-hidden"
                   style={{ background: "#1C1C1C" }}>
-                  <img
-                    src={e.image}
-                    alt={e.title}
+                  <img src={e.image} alt={e.title}
                     className="w-full h-full object-contain"
-                    style={{ filter: "brightness(0.95) contrast(1.02)" }}
-                  />
+                    style={{ filter: "brightness(0.95) contrast(1.02)" }} />
                 </div>
                 <div className="px-4 py-3" style={{ background: "rgba(42,42,42,0.6)" }}>
                   <p style={{ fontFamily: "'Playfair Display', serif" }}

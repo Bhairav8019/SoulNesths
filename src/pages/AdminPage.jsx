@@ -137,44 +137,19 @@ function BookingsSection() {
 }
 
 // ═══════════════════════════════════════════════════════════════
-// SECTION: Room Availability Toggle
+// SECTION: Room Availability — Per-date block/unblock controls
+//
+// Writes ADMIN_DATE_{date} docs to Firestore roomAvailability collection.
+// fetchRoomAvailability() in roomAvailability.js treats these as booked ranges,
+// so blocked dates show as unavailable on the guest-facing booking card.
 // ═══════════════════════════════════════════════════════════════
 function AvailabilitySection() {
-  const [availability, setAvailability] = useState({})
+  const [selectedRoom, setSelectedRoom] = useState(ROOM_IDS[0])
+  const [selectedDate, setSelectedDate] = useState("")
+  const [blockedDates, setBlockedDates] = useState({}) // { roomId: ["2026-04-01", ...] }
   const [loading, setLoading]           = useState(true)
-  const [saving, setSaving]             = useState(null)
-
-  const fetchAll = async () => {
-    const result = {}
-    for (const roomId of ROOM_IDS) {
-      const docId = `${HOMESTAY.id}_${roomId}`
-      const snap  = await getDoc(doc(db, "roomAvailability", docId))
-      result[roomId] = snap.exists() ? snap.data() : { booked: false, roomId, homestayId: HOMESTAY.id }
-    }
-    setAvailability(result)
-    setLoading(false)
-  }
-
-  useEffect(() => { fetchAll() }, [])
-
-  const toggle = async (roomId) => {
-    setSaving(roomId)
-    const current   = availability[roomId]
-    const docId     = `${HOMESTAY.id}_${roomId}`
-    const newBooked = !current.booked
-    await setDoc(doc(db, "roomAvailability", docId), {
-      roomId, homestayId: HOMESTAY.id,
-      booked: newBooked,
-      checkOutDate:      newBooked ? null : null,
-      bookingId:         newBooked ? "ADMIN_BLOCK" : null,
-      bookedAt:          newBooked ? new Date().toISOString() : null,
-      blockedByConflict: false,
-    })
-    await fetchAll()
-    setSaving(null)
-  }
-
-  if (loading) return <p style={{ color: C.grey }}>Loading…</p>
+  const [saving, setSaving]             = useState(false)
+  const [flash, setFlash]               = useState("")   // brief confirmation message
 
   const roomLabels = {
     "standard":     "Standard Room",
@@ -183,32 +158,197 @@ function AvailabilitySection() {
     "premium-2bhk": "Premium 2BHK",
   }
 
+  const getTodayDate = () => new Date().toISOString().split("T")[0]
+
+  // ── Load blocked dates for all rooms from Firestore ──────────
+  const fetchBlocked = async () => {
+    setLoading(true)
+    const result = {}
+    for (const roomId of ROOM_IDS) {
+      result[roomId] = []
+      try {
+        const snap = await getDocs(collection(db, "roomAvailability"))
+        snap.docs.forEach(d => {
+          const data = d.data()
+          // Admin-blocked date docs use ID pattern: {homestayId}_{roomId}_ADMIN_DATE_{date}
+          if (
+            data.roomId === roomId &&
+            data.homestayId === HOMESTAY.id &&
+            data.adminBlock === true &&
+            data.date
+          ) {
+            result[roomId].push({ date: data.date, docId: d.id })
+          }
+        })
+        // Sort ascending
+        result[roomId].sort((a, b) => a.date.localeCompare(b.date))
+      } catch (err) {
+        console.warn("fetchBlocked error:", err.message)
+      }
+    }
+    setBlockedDates(result)
+    setLoading(false)
+  }
+
+  useEffect(() => { fetchBlocked() }, [])
+
+  // ── Block a date ─────────────────────────────────────────────
+  const blockDate = async () => {
+    if (!selectedDate) return
+    const alreadyBlocked = (blockedDates[selectedRoom] || []).some(e => e.date === selectedDate)
+    if (alreadyBlocked) { setFlash("Already blocked."); setTimeout(() => setFlash(""), 2500); return }
+    setSaving(true)
+    const docId = `${HOMESTAY.id}_${selectedRoom}_ADMIN_DATE_${selectedDate}`
+    await setDoc(doc(db, "roomAvailability", docId), {
+      bookingId:         docId,
+      roomId:            selectedRoom,
+      homestayId:        HOMESTAY.id,
+      checkIn:           selectedDate,
+      checkOut:          selectedDate,
+      date:              selectedDate,
+      bookedAt:          new Date().toISOString(),
+      blockedByConflict: false,
+      adminBlock:        true,
+    })
+    setSaving(false)
+    setFlash(`✓ ${selectedDate} blocked for ${roomLabels[selectedRoom]}`)
+    setTimeout(() => setFlash(""), 3000)
+    await fetchBlocked()
+  }
+
+  // ── Unblock a date ───────────────────────────────────────────
+  const unblockDate = async (roomId, docId) => {
+    setSaving(true)
+    await deleteDoc(doc(db, "roomAvailability", docId))
+    setSaving(false)
+    setFlash(`✓ Date unblocked`)
+    setTimeout(() => setFlash(""), 3000)
+    await fetchBlocked()
+  }
+
   return (
-    <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(220px, 1fr))", gap: 14 }}>
-      {ROOM_IDS.map(roomId => {
-        const av     = availability[roomId] || {}
-        const booked = av.booked
-        return (
-          <div key={roomId} style={{
-            background: C.card2, border: `1px solid ${booked ? C.red + "44" : C.green + "44"}`,
-            borderRadius: 12, padding: "16px 18px",
-          }}>
-            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 8 }}>
-              <span style={{ color: C.white, fontWeight: 600, fontSize: 14 }}>{roomLabels[roomId] || roomId}</span>
-              <Badge color={booked ? C.red : C.green}>{booked ? "Blocked" : "Available"}</Badge>
-            </div>
-            {av.bookingId && av.bookingId !== "ADMIN_BLOCK" && (
-              <p style={{ color: C.dim, fontSize: 11, marginBottom: 8 }}>Booking: {av.bookingId}</p>
-            )}
-            {av.checkOutDate && (
-              <p style={{ color: C.dim, fontSize: 11, marginBottom: 8 }}>Until: {av.checkOutDate}</p>
-            )}
-            <Btn onClick={() => toggle(roomId)} disabled={saving === roomId} danger={!booked} color={C.green} small>
-              {saving === roomId ? "…" : booked ? "Mark Available" : "Block Room"}
+    <div style={{ display: "flex", flexDirection: "column", gap: 24 }}>
+
+      {/* Info banner */}
+      <div style={{
+        background: C.bamboo + "11", border: `1px solid ${C.bamboo}33`,
+        borderRadius: 10, padding: "12px 16px",
+      }}>
+        <p style={{ color: C.bamboo, fontSize: 12, margin: 0 }}>
+          💡 Block specific dates per room — guests won't be able to book those dates.
+          Unblock at any time. Blocked dates appear as "Unavailable" on the booking page.
+        </p>
+      </div>
+
+      {/* Controls row */}
+      <div style={{
+        background: C.card2, border: `1px solid ${C.border}`,
+        borderRadius: 12, padding: "18px 20px",
+      }}>
+        <p style={{ color: C.white, fontWeight: 600, fontSize: 14, marginBottom: 14 }}>Block a Date</p>
+        <div style={{ display: "flex", gap: 12, flexWrap: "wrap", alignItems: "flex-end" }}>
+
+          {/* Room selector */}
+          <div style={{ display: "flex", flexDirection: "column", gap: 5 }}>
+            <label style={{ color: C.grey, fontSize: 11 }}>Room</label>
+            <select
+              value={selectedRoom}
+              onChange={e => setSelectedRoom(e.target.value)}
+              style={{
+                background: "#2a2a2a", border: `1px solid ${C.border}`,
+                borderRadius: 8, padding: "8px 12px", color: C.white,
+                fontSize: 13, outline: "none", fontFamily: "inherit", cursor: "pointer",
+              }}>
+              {ROOM_IDS.map(id => (
+                <option key={id} value={id}>{roomLabels[id] || id}</option>
+              ))}
+            </select>
+          </div>
+
+          {/* Date picker */}
+          <div style={{ display: "flex", flexDirection: "column", gap: 5 }}>
+            <label style={{ color: C.grey, fontSize: 11 }}>Date</label>
+            <input
+              type="date"
+              value={selectedDate}
+              min={getTodayDate()}
+              onChange={e => setSelectedDate(e.target.value)}
+              style={{
+                background: "#2a2a2a", border: `1px solid ${C.border}`,
+                borderRadius: 8, padding: "8px 12px", color: C.white,
+                fontSize: 13, outline: "none", fontFamily: "inherit",
+              }}
+            />
+          </div>
+
+          {/* Action buttons */}
+          <div style={{ display: "flex", gap: 8, alignItems: "flex-end" }}>
+            <Btn
+              onClick={blockDate}
+              disabled={saving || !selectedDate}
+              danger
+              small={false}
+            >
+              {saving ? "…" : "Block Date"}
             </Btn>
           </div>
-        )
-      })}
+        </div>
+
+        {/* Flash message */}
+        {flash && (
+          <p style={{ color: C.green, fontSize: 12, marginTop: 10, marginBottom: 0 }}>{flash}</p>
+        )}
+      </div>
+
+      {/* Blocked dates list — per room */}
+      {loading ? (
+        <p style={{ color: C.grey }}>Loading blocked dates…</p>
+      ) : (
+        <div style={{ display: "flex", flexDirection: "column", gap: 14 }}>
+          {ROOM_IDS.map(roomId => {
+            const entries = blockedDates[roomId] || []
+            return (
+              <div key={roomId} style={{
+                background: C.card2, border: `1px solid ${entries.length > 0 ? C.red + "33" : C.border}`,
+                borderRadius: 12, padding: "14px 18px",
+              }}>
+                <div style={{ display: "flex", alignItems: "center", gap: 10, marginBottom: entries.length ? 12 : 0 }}>
+                  <span style={{ color: C.white, fontWeight: 600, fontSize: 14 }}>
+                    {roomLabels[roomId] || roomId}
+                  </span>
+                  <Badge color={entries.length > 0 ? C.red : C.green}>
+                    {entries.length > 0 ? `${entries.length} date${entries.length > 1 ? "s" : ""} blocked` : "No blocks"}
+                  </Badge>
+                </div>
+
+                {entries.length > 0 && (
+                  <div style={{ display: "flex", flexWrap: "wrap", gap: 8 }}>
+                    {entries.map(({ date, docId }) => (
+                      <div key={docId} style={{
+                        display: "flex", alignItems: "center", gap: 6,
+                        background: C.red + "11", border: `1px solid ${C.red}33`,
+                        borderRadius: 8, padding: "4px 10px",
+                      }}>
+                        <span style={{ color: C.white, fontSize: 12 }}>{date}</span>
+                        <button
+                          onClick={() => unblockDate(roomId, docId)}
+                          disabled={saving}
+                          style={{
+                            background: "none", border: "none", color: C.red,
+                            cursor: saving ? "not-allowed" : "pointer",
+                            fontSize: 14, lineHeight: 1, padding: 0, opacity: saving ? 0.4 : 1,
+                          }}
+                          title="Unblock this date"
+                        >×</button>
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </div>
+            )
+          })}
+        </div>
+      )}
     </div>
   )
 }

@@ -1,31 +1,19 @@
 // src/pages/BookingsPage.jsx
-// ─────────────────────────────────────────────────────────────────────────────
-// User-facing Bookings Page — Soul Nest Homestays
-//
-// Shows the logged-in user's booking history fetched from Firestore.
-// Each booking row: ID, rooms, dates, guests, amount, status, cancel button.
-// Cancel logic: allowed if check-in is > 48hrs away.
-// Nest Escapes enquiry section at the bottom with phone dial.
-// ─────────────────────────────────────────────────────────────────────────────
-
 import { useState, useEffect } from "react"
 import { useNavigate }         from "react-router-dom"
 import { useAuth }             from "../context/AuthContext"
 import {
-  collection, getDocs, query, where, doc, updateDoc
+  collection, getDocs, doc, updateDoc
 } from "firebase/firestore"
 import { db }                  from "../firebase"
 import {
-  ArrowLeft, Phone, Calendar, Users, BedDouble,
-  CheckCircle2, XCircle, Clock, AlertTriangle, X
+  ArrowLeft, Phone, CheckCircle2, Clock, AlertTriangle, X
 } from "lucide-react"
 import Navbar from "../components/Navbar"
 
-// ── Owner contact — replace with real number ─────────────────
-const OWNER_WHATSAPP = "917002316152"  // ← replace with real WhatsApp number (no +)
+const OWNER_WHATSAPP = "917002316152"
 const OWNER_PHONE    = "+91 91274 04991"
 
-// ── Brand tokens ─────────────────────────────────────────────
 const C = {
   bg:     "#111111",
   card:   "#1C1C1C",
@@ -39,29 +27,12 @@ const C = {
   red:    "#ef4444",
 }
 
-// ── Nest Escapes data (mirrors HomestayPage) ─────────────────
 const nestEscapes = [
-  {
-    icon: "/hangout.jpg",
-    title: "Hangout",
-    desc: "Explore Jorhat and beyond with self-drive or chauffeur options.",
-    tag: "On Request",
-  },
-  {
-    icon: "/chefondemand.jpg",
-    title: "Chef on Demand",
-    desc: "Authentic Assamese cuisine delivered fresh to your room.",
-    tag: "On Order",
-  },
-  {
-    icon: "/orchestraanddj.jpg",
-    title: "Orchestra & DJ",
-    desc: "Live music and DJ nights for celebrations and special evenings.",
-    tag: "On Request",
-  },
+  { icon: "/hangout.jpg",        title: "Hangout",        desc: "Explore Jorhat and beyond with self-drive or chauffeur options.", tag: "On Request" },
+  { icon: "/chefondemand.jpg",   title: "Chef on Demand", desc: "Authentic Assamese cuisine delivered fresh to your room.",         tag: "On Order"   },
+  { icon: "/orchestraanddj.jpg", title: "Orchestra & DJ", desc: "Live music and DJ nights for celebrations and special evenings.",  tag: "On Request" },
 ]
 
-// ── Helpers ───────────────────────────────────────────────────
 function hoursUntilCheckIn(checkInStr) {
   if (!checkInStr) return Infinity
   const d = new Date(checkInStr + "T00:00:00")
@@ -77,12 +48,10 @@ function StatusBadge({ status, checkIn }) {
   const hrs = hoursUntilCheckIn(checkIn)
   let label = status
   let color = C.green
-
-  if (status === "cancelled") { label = "Cancelled"; color = C.red }
-  else if (hrs < 0)           { label = "Completed"; color = C.dim }
-  else if (hrs <= 24)         { label = "Check-in Today"; color = C.bamboo }
-  else                        { label = "Confirmed"; color = C.green }
-
+  if (status === "cancelled")  { label = "Cancelled";      color = C.red    }
+  else if (hrs < 0)            { label = "Completed";      color = C.dim    }
+  else if (hrs <= 24)          { label = "Check-in Today"; color = C.bamboo }
+  else                         { label = "Confirmed";      color = C.green  }
   return (
     <span style={{
       background: color + "22", color,
@@ -93,12 +62,9 @@ function StatusBadge({ status, checkIn }) {
   )
 }
 
-// ── Cancel Confirmation Modal ─────────────────────────────────
 function CancelModal({ booking, onConfirm, onClose, cancelling }) {
-  const hrs         = hoursUntilCheckIn(booking.checkIn)
-  const eligible48  = hrs > 48
-  const refundAmt   = eligible48 ? booking.platformFee : 0
-
+  const hrs        = hoursUntilCheckIn(booking.checkIn)
+  const eligible48 = hrs > 48
   return (
     <div style={{
       position: "fixed", inset: 0, zIndex: 100,
@@ -134,9 +100,15 @@ function CancelModal({ booking, onConfirm, onClose, cancelling }) {
           background: C.card2, border: `1px solid ${C.border}`,
           borderRadius: 12, padding: "12px 16px", marginBottom: 16,
         }}>
-          <p style={{ color: C.grey, fontSize: 12, margin: "0 0 4px" }}>Check-in: <span style={{ color: C.white }}>{formatDate(booking.checkIn)}</span></p>
-          <p style={{ color: C.grey, fontSize: 12, margin: "0 0 4px" }}>Rooms: <span style={{ color: C.white }}>{(booking.roomIds || []).join(", ")}</span></p>
-          <p style={{ color: C.grey, fontSize: 12, margin: 0 }}>Platform fee paid: <span style={{ color: C.white }}>₹{booking.platformFee}</span></p>
+          <p style={{ color: C.grey, fontSize: 12, margin: "0 0 4px" }}>
+            Check-in: <span style={{ color: C.white }}>{formatDate(booking.checkIn)}</span>
+          </p>
+          <p style={{ color: C.grey, fontSize: 12, margin: "0 0 4px" }}>
+            Rooms: <span style={{ color: C.white }}>{(booking.roomIds || []).join(", ")}</span>
+          </p>
+          <p style={{ color: C.grey, fontSize: 12, margin: 0 }}>
+            Platform fee paid: <span style={{ color: C.white }}>&#8377;{booking.platformFee}</span>
+          </p>
         </div>
 
         {eligible48 ? (
@@ -144,9 +116,9 @@ function CancelModal({ booking, onConfirm, onClose, cancelling }) {
             background: C.green + "11", border: `1px solid ${C.green}33`,
             borderRadius: 10, padding: "10px 14px", marginBottom: 16,
           }}>
-            <p style={{ color: C.green, fontSize: 12, fontWeight: 600, margin: "0 0 2px" }}>✅ Eligible for full refund</p>
+            <p style={{ color: C.green, fontSize: 12, fontWeight: 600, margin: "0 0 2px" }}>&#10003; Eligible for full refund</p>
             <p style={{ color: C.grey, fontSize: 12, margin: 0 }}>
-              Check-in is more than 48 hrs away. Platform fee of ₹{refundAmt} will be fully refunded.
+              Check-in is more than 48 hrs away. Platform fee of &#8377;{booking.platformFee} will be fully refunded.
             </p>
           </div>
         ) : (
@@ -154,9 +126,9 @@ function CancelModal({ booking, onConfirm, onClose, cancelling }) {
             background: C.red + "11", border: `1px solid ${C.red}33`,
             borderRadius: 10, padding: "10px 14px", marginBottom: 16,
           }}>
-            <p style={{ color: C.red, fontSize: 12, fontWeight: 600, margin: "0 0 2px" }}>⚠ No refund applicable</p>
+            <p style={{ color: C.red, fontSize: 12, fontWeight: 600, margin: "0 0 2px" }}>No refund applicable</p>
             <p style={{ color: C.grey, fontSize: 12, margin: 0 }}>
-              Check-in is within 48 hours. Platform fee of ₹{booking.platformFee} is non-refundable at this stage.
+              Check-in is within 48 hours. Platform fee of &#8377;{booking.platformFee} is non-refundable at this stage.
             </p>
           </div>
         )}
@@ -174,26 +146,23 @@ function CancelModal({ booking, onConfirm, onClose, cancelling }) {
             padding: "12px 0", fontSize: 13, fontWeight: 600,
             cursor: cancelling ? "not-allowed" : "pointer",
             opacity: cancelling ? 0.5 : 1, fontFamily: "inherit",
-          }}>{cancelling ? "Cancelling…" : "Yes, Cancel"}</button>
+          }}>{cancelling ? "Cancelling..." : "Yes, Cancel"}</button>
         </div>
       </div>
     </div>
   )
 }
 
-// ── Booking Card ──────────────────────────────────────────────
 function BookingCard({ booking, onCancelClick }) {
-  const hrs        = hoursUntilCheckIn(booking.checkIn)
-  const canCancel  = booking.status === "confirmed" && hrs > 0
-  const isPast     = hrs < 0
-  const nights     = booking.nights || 1
+  const hrs       = hoursUntilCheckIn(booking.checkIn)
+  const canCancel = booking.status === "confirmed" && hrs > 0
+  const nights    = booking.nights || 1
 
   return (
     <div style={{
       background: C.card, border: `1px solid ${C.border}`,
       borderRadius: 20, padding: "18px 20px", marginBottom: 14,
     }}>
-      {/* Top row */}
       <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", marginBottom: 12 }}>
         <div>
           <p style={{ color: C.bamboo, fontWeight: 700, fontSize: 13, margin: "0 0 2px",
@@ -205,11 +174,7 @@ function BookingCard({ booking, onCancelClick }) {
         <StatusBadge status={booking.status} checkIn={booking.checkIn} />
       </div>
 
-      {/* Details grid */}
-      <div style={{
-        display: "grid", gridTemplateColumns: "1fr 1fr",
-        gap: "10px 16px", marginBottom: 14,
-      }}>
+      <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "10px 16px", marginBottom: 14 }}>
         <div>
           <p style={{ color: C.dim, fontSize: 11, margin: "0 0 2px" }}>Rooms</p>
           <p style={{ color: C.white, fontSize: 13, fontWeight: 600, margin: 0 }}>
@@ -239,60 +204,61 @@ function BookingCard({ booking, onCancelClick }) {
         <div>
           <p style={{ color: C.dim, fontSize: 11, margin: "0 0 2px" }}>Total Amount</p>
           <p style={{ color: C.green, fontSize: 13, fontWeight: 700, margin: 0 }}>
-            ₹{booking.totalAmount?.toLocaleString() || "—"}
+            &#8377;{booking.totalAmount?.toLocaleString() || "—"}
           </p>
         </div>
       </div>
 
-      {/* Fee row */}
       <div style={{
         background: C.card2, borderRadius: 10,
         padding: "8px 14px", marginBottom: 14,
         display: "flex", justifyContent: "space-between", alignItems: "center",
       }}>
         <span style={{ color: C.grey, fontSize: 12 }}>Platform fee paid</span>
-        <span style={{ color: C.white, fontSize: 12, fontWeight: 600 }}>₹{booking.platformFee || 0}</span>
+        <span style={{ color: C.white, fontSize: 12, fontWeight: 600 }}>&#8377;{booking.platformFee || 0}</span>
       </div>
 
-      {/* Refund status if cancelled */}
-      {booking.status === "cancelled" && (
+      {/* Case 1: refunded */}
+      {booking.status === "cancelled" && booking.refundStatus === "refunded" && (
         <div style={{
-          background: booking.refundStatus === "refunded" ? C.green + "11" : C.red + "11",
-          border: `1px solid ${booking.refundStatus === "refunded" ? C.green : C.red}33`,
+          background: C.green + "11", border: `1px solid ${C.green}33`,
           borderRadius: 10, padding: "8px 14px", marginBottom: 14,
           display: "flex", alignItems: "center", gap: 8,
         }}>
-          {booking.refundStatus === "refunded" ? (
-            <>
-              <CheckCircle2 size={14} color={C.green} />
-              <span style={{ color: C.green, fontSize: 12, fontWeight: 600 }}>
-                Refund processed · ₹{booking.platformFee}
-              </span>
-            </>
-          ) : (
-            <>
-              <Clock size={14} color={C.bamboo} />
-              <span style={{ color: C.bamboo, fontSize: 12, fontWeight: 600 }}>
-                Refund pending — we'll process it within 3–5 business days
-              </span>
-            </>
-          )}
+          <CheckCircle2 size={14} color={C.green} />
+          <span style={{ color: C.green, fontSize: 12, fontWeight: 600 }}>
+            Refund processed · &#8377;{booking.platformFee}
+          </span>
         </div>
       )}
 
-      {/* 48hr cancel warning for upcoming */}
+      {/* Case 2: pending */}
+      {booking.status === "cancelled" && booking.refundStatus === "pending" && (
+        <div style={{
+          background: C.bamboo + "11", border: `1px solid ${C.bamboo}33`,
+          borderRadius: 10, padding: "8px 14px", marginBottom: 14,
+          display: "flex", alignItems: "center", gap: 8,
+        }}>
+          <Clock size={14} color={C.bamboo} />
+          <span style={{ color: C.bamboo, fontSize: 12, fontWeight: 600 }}>
+            Refund pending — we'll process it within 3–5 business days
+          </span>
+        </div>
+      )}
+
+      {/* Case 3: not_eligible — render nothing */}
+
       {booking.status === "confirmed" && hrs > 0 && hrs <= 48 && (
         <div style={{
           background: C.red + "0d", border: `1px solid ${C.red}22`,
           borderRadius: 10, padding: "8px 14px", marginBottom: 14,
         }}>
           <p style={{ color: C.red, fontSize: 12, margin: 0 }}>
-            ⚠ Check-in within 48 hrs — cancellation is no longer eligible for a refund
+            Check-in within 48 hrs — cancellation is no longer eligible for a refund
           </p>
         </div>
       )}
 
-      {/* Actions */}
       <div style={{ display: "flex", gap: 10 }}>
         {canCancel && (
           <button onClick={() => onCancelClick(booking)} style={{
@@ -305,8 +271,9 @@ function BookingCard({ booking, onCancelClick }) {
           </button>
         )}
         <a
-          href={`https://wa.me/${OWNER_WHATSAPP}?text=Hi, I have a query about my booking ${booking.bookingId}`}
-          target="_blank" rel="noopener noreferrer"
+          href={"https://wa.me/" + OWNER_WHATSAPP + "?text=Hi, I have a query about my booking " + booking.bookingId}
+          target="_blank"
+          rel="noopener noreferrer"
           style={{
             flex: 1, background: C.green + "22", color: C.green,
             border: `1px solid ${C.green}44`, borderRadius: 12,
@@ -322,16 +289,15 @@ function BookingCard({ booking, onCancelClick }) {
   )
 }
 
-// ── Main Page ─────────────────────────────────────────────────
 export default function BookingsPage({ onLogoClick }) {
   const { currentUser, openLogin } = useAuth()
   const navigate = useNavigate()
 
-  const [bookings, setBookings]       = useState([])
-  const [loading, setLoading]         = useState(true)
+  const [bookings, setBookings]         = useState([])
+  const [loading, setLoading]           = useState(true)
   const [cancelTarget, setCancelTarget] = useState(null)
-  const [cancelling, setCancelling]   = useState(false)
-  const [activeTab, setActiveTab]     = useState("upcoming") // "upcoming" | "past"
+  const [cancelling, setCancelling]     = useState(false)
+  const [activeTab, setActiveTab]       = useState("upcoming")
 
   useEffect(() => {
     if (!currentUser) { setLoading(false); return }
@@ -351,16 +317,17 @@ export default function BookingsPage({ onLogoClick }) {
   const handleCancelConfirm = async () => {
     if (!cancelTarget) return
     setCancelling(true)
+    const eligible     = hoursUntilCheckIn(cancelTarget.checkIn) > 48
+    const refundStatus = eligible ? "pending" : "not_eligible"
     try {
       await updateDoc(doc(db, "bookings", cancelTarget.bookingId), {
         status:      "cancelled",
         cancelledAt: new Date().toISOString(),
-        refundStatus: hoursUntilCheckIn(cancelTarget.checkIn) > 48 ? "pending" : "not_eligible",
+        refundStatus,
       })
       setBookings(prev =>
         prev.map(b => b.bookingId === cancelTarget.bookingId
-          ? { ...b, status: "cancelled", cancelledAt: new Date().toISOString(),
-              refundStatus: hoursUntilCheckIn(cancelTarget.checkIn) > 48 ? "pending" : "not_eligible" }
+          ? { ...b, status: "cancelled", cancelledAt: new Date().toISOString(), refundStatus }
           : b
         )
       )
@@ -383,7 +350,7 @@ export default function BookingsPage({ onLogoClick }) {
         display: "flex", flexDirection: "column",
         alignItems: "center", justifyContent: "center", gap: 16, padding: "100px 16px 40px",
       }}>
-        <p style={{ fontSize: 48 }}>🔐</p>
+        <p style={{ fontSize: 48 }}>&#128274;</p>
         <h2 style={{ fontFamily: "'Playfair Display', serif", color: C.white, margin: 0, fontSize: 22 }}>
           Login to View Bookings
         </h2>
@@ -394,11 +361,11 @@ export default function BookingsPage({ onLogoClick }) {
           background: C.green, color: C.white, border: "none",
           borderRadius: 14, padding: "12px 28px", fontSize: 14,
           fontWeight: 600, cursor: "pointer", fontFamily: "inherit",
-        }}>Login with Phone →</button>
+        }}>Login with Phone</button>
         <button onClick={() => navigate("/")} style={{
           background: "none", color: C.grey, border: "none",
           fontSize: 13, cursor: "pointer", fontFamily: "inherit",
-        }}>← Back to Home</button>
+        }}>Back to Home</button>
       </div>
     </div>
   )
@@ -440,15 +407,15 @@ export default function BookingsPage({ onLogoClick }) {
           overflow: "hidden",
         }}>
           {[
-            { id: "upcoming", label: `Upcoming (${upcoming.length})` },
-            { id: "past",     label: `Past & Cancelled (${past.length})` },
+            { id: "upcoming", label: "Upcoming (" + upcoming.length + ")" },
+            { id: "past",     label: "Past & Cancelled (" + past.length + ")" },
           ].map(tab => (
             <button key={tab.id} onClick={() => setActiveTab(tab.id)} style={{
               flex: 1, padding: "11px 0", fontSize: 13, fontWeight: 600,
               cursor: "pointer", border: "none", fontFamily: "inherit",
               background: activeTab === tab.id ? C.green + "22" : "transparent",
               color: activeTab === tab.id ? C.white : C.grey,
-              borderBottom: activeTab === tab.id ? `2px solid ${C.green}` : "2px solid transparent",
+              borderBottom: activeTab === tab.id ? "2px solid " + C.green : "2px solid transparent",
               transition: "all 0.15s",
             }}>{tab.label}</button>
           ))}
@@ -457,11 +424,11 @@ export default function BookingsPage({ onLogoClick }) {
         {loading ? (
           <div style={{ textAlign: "center", padding: "48px 0" }}>
             <div style={{
-              width: 32, height: 32, border: `2px solid ${C.border}`,
-              borderTop: `2px solid ${C.green}`, borderRadius: "50%",
+              width: 32, height: 32, border: "2px solid " + C.border,
+              borderTop: "2px solid " + C.green, borderRadius: "50%",
               margin: "0 auto 12px", animation: "spin 0.8s linear infinite",
             }} />
-            <p style={{ color: C.grey, fontSize: 13 }}>Loading bookings…</p>
+            <p style={{ color: C.grey, fontSize: 13 }}>Loading bookings...</p>
           </div>
         ) : displayed.length === 0 ? (
           <div style={{ textAlign: "center", padding: "48px 0" }}>
@@ -479,10 +446,10 @@ export default function BookingsPage({ onLogoClick }) {
             {activeTab === "upcoming" && (
               <button onClick={() => navigate("/")} style={{
                 background: C.green + "22", color: C.green,
-                border: `1px solid ${C.green}44`, borderRadius: 12,
+                border: "1px solid " + C.green + "44", borderRadius: 12,
                 padding: "10px 24px", fontSize: 13, fontWeight: 600,
                 cursor: "pointer", fontFamily: "inherit",
-              }}>Explore Homestays →</button>
+              }}>Explore Homestays</button>
             )}
           </div>
         ) : (
@@ -492,8 +459,8 @@ export default function BookingsPage({ onLogoClick }) {
         )}
 
         {upcoming.length > 0 && (
-          <>
-            <div style={{ borderTop: `1px solid ${C.border}`, margin: "28px 0" }} />
+          <div>
+            <div style={{ borderTop: "1px solid " + C.border, margin: "28px 0" }} />
             <div style={{ marginBottom: 8 }}>
               <h2 style={{ fontFamily: "'Playfair Display', serif", color: C.white, fontSize: 19, margin: "0 0 4px" }}>
                 Nest Escapes
@@ -504,7 +471,7 @@ export default function BookingsPage({ onLogoClick }) {
               <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
                 {nestEscapes.map((e, i) => (
                   <div key={i} style={{
-                    background: C.card, border: `1px solid ${C.border}`,
+                    background: C.card, border: "1px solid " + C.border,
                     borderRadius: 16, padding: "14px 16px",
                     display: "flex", alignItems: "center", justifyContent: "space-between", gap: 12,
                   }}>
@@ -517,17 +484,18 @@ export default function BookingsPage({ onLogoClick }) {
                         <p style={{ color: C.grey, fontSize: 12, margin: "0 0 4px" }}>{e.desc}</p>
                         <span style={{
                           background: C.bamboo + "22", color: C.bamboo,
-                          border: `1px solid ${C.bamboo}44`,
+                          border: "1px solid " + C.bamboo + "44",
                           borderRadius: 6, padding: "2px 8px", fontSize: 11, fontWeight: 600,
                         }}>{e.tag}</span>
                       </div>
                     </div>
                     <a
-                      href={`https://wa.me/${OWNER_WHATSAPP}?text=Hi, I'd like to enquire about ${e.title} for my booking`}
-                      target="_blank" rel="noopener noreferrer"
+                      href={"https://wa.me/" + OWNER_WHATSAPP + "?text=Hi, I'd like to enquire about " + e.title + " for my booking"}
+                      target="_blank"
+                      rel="noopener noreferrer"
                       style={{
                         flexShrink: 0, background: C.green + "22", color: C.green,
-                        border: `1px solid ${C.green}44`, borderRadius: 10,
+                        border: "1px solid " + C.green + "44", borderRadius: 10,
                         padding: "8px 14px", fontSize: 12, fontWeight: 600,
                         textDecoration: "none", display: "flex", alignItems: "center", gap: 6,
                         whiteSpace: "nowrap",
@@ -540,7 +508,7 @@ export default function BookingsPage({ onLogoClick }) {
 
               <div style={{
                 marginTop: 14, background: C.card2,
-                border: `1px solid ${C.border}`, borderRadius: 14,
+                border: "1px solid " + C.border, borderRadius: 14,
                 padding: "14px 16px", display: "flex",
                 alignItems: "center", justifyContent: "space-between",
               }}>
@@ -548,9 +516,9 @@ export default function BookingsPage({ onLogoClick }) {
                   <p style={{ color: C.white, fontSize: 13, fontWeight: 600, margin: "0 0 2px" }}>Prefer to call?</p>
                   <p style={{ color: C.grey, fontSize: 12, margin: 0 }}>Reach the owner directly at {OWNER_PHONE}</p>
                 </div>
-                <a href={`tel:${OWNER_PHONE.replace(/\s/g, "")}`} style={{
+                <a href={"tel:" + OWNER_PHONE.replace(/\s/g, "")} style={{
                   background: C.bamboo + "22", color: C.bamboo,
-                  border: `1px solid ${C.bamboo}44`, borderRadius: 10,
+                  border: "1px solid " + C.bamboo + "44", borderRadius: 10,
                   padding: "8px 16px", fontSize: 12, fontWeight: 600,
                   textDecoration: "none", display: "flex", alignItems: "center", gap: 6,
                 }}>
@@ -558,24 +526,25 @@ export default function BookingsPage({ onLogoClick }) {
                 </a>
               </div>
             </div>
-          </>
+          </div>
         )}
 
         <div style={{
           marginTop: 28, background: C.card,
-          border: `1px solid ${C.border}`, borderRadius: 16,
+          border: "1px solid " + C.border, borderRadius: 16,
           padding: "16px 20px", textAlign: "center",
         }}>
           <p style={{ color: C.grey, fontSize: 13, margin: "0 0 10px" }}>
             Need help with a booking? Reach us on WhatsApp
           </p>
           <a
-            href={`https://wa.me/${OWNER_WHATSAPP}?text=Hi, I need help with my Soul Nest booking`}
-            target="_blank" rel="noopener noreferrer"
+            href={"https://wa.me/" + OWNER_WHATSAPP + "?text=Hi, I need help with my Soul Nest booking"}
+            target="_blank"
+            rel="noopener noreferrer"
             style={{
               display: "inline-flex", alignItems: "center", gap: 6,
               background: C.green + "22", color: C.green,
-              border: `1px solid ${C.green}44`, borderRadius: 10,
+              border: "1px solid " + C.green + "44", borderRadius: 10,
               padding: "8px 20px", fontSize: 13, fontWeight: 600,
               textDecoration: "none",
             }}>
