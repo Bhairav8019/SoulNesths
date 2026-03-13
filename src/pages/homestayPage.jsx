@@ -28,19 +28,19 @@ const amenities = [
 ]
 
 const rules = [
-  "Check-in: 12:00 PM | Check-out: 11:00 AM",
-  "No smoking inside the premises",
-  "Pets are not allowed",
-  "Parties or loud music after 10:00 PM is not permitted",
-  "Guests must carry a valid government ID at check-in",
-  "Remaining balance to be paid in cash at homestay",
+  "Check-in: 11:00 PM | Check-out: 11:00 AM",
+  "No illegal activities; use of drugs, illegal substances, or any unlawful activity is strictly prohibited on the premises",
+  "Guests must carry a valid government ID at check-in and should not be less than 21 years of age. Minors must be accompanied by a guardian at all times",
+  "Parties or loud music after 10:00 PM - 07:00 AM is not permitted",
+  "Guests are responsible for any damage to the property during their stay.",
+  "Visitors are not allowed without prior permission from the host",
   "Full refund on platform fee if cancelled 48 hrs before check-in (00:00)",
   "The homestay reserves the right to deny entry if rules are violated",
 ]
 
 const reviews = [
   { name: "Arjun M.", rating: 5, date: "Feb 2026", comment: "Absolutely stunning stay. The Premium 1 BHK was immaculate — felt like a luxury apartment. Will definitely return." },
-  { name: "Priya S.", rating: 5, date: "Jan 2026", comment: "Perfect couple getaway. Very private, clean and the host was incredibly welcoming. Loved the kitchen!" },
+  { name: "Bhairav G.", rating: 5, date: "Mar 2026", comment: "Perfect couple getaway. Very private, clean and the host was incredibly welcoming. Loved the kitchen!" },
   { name: "Rohit D.", rating: 4, date: "Dec 2025", comment: "Great location, cozy rooms and excellent WiFi. The balcony view in the 1 BHK is a bonus." },
 ]
 
