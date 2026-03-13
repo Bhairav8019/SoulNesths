@@ -41,7 +41,7 @@ const ROOM_IDS = HOMESTAY.rooms.map(r => r.id)
 // ── Tiny UI helpers ──────────────────────────────────────────
 const Badge = ({ color, children }) => (
   <span style={{
-    background: color + "22", color, border: `1px solid ${color}44`,
+    background: color + "22", color, border: "1px solid " + color + "44",
     borderRadius: 6, padding: "2px 8px", fontSize: 11, fontWeight: 600,
   }}>{children}</span>
 )
@@ -51,7 +51,7 @@ const Btn = ({ onClick, children, color = C.green, disabled, small, danger }) =>
     style={{
       background: danger ? "#ef444422" : color + "22",
       color: danger ? C.red : color,
-      border: `1px solid ${danger ? C.red : color}44`,
+      border: "1px solid " + (danger ? C.red : color) + "44",
       borderRadius: 8, padding: small ? "4px 12px" : "8px 18px",
       fontSize: small ? 12 : 13, fontWeight: 600, cursor: disabled ? "not-allowed" : "pointer",
       opacity: disabled ? 0.5 : 1, transition: "all 0.15s",
@@ -62,7 +62,7 @@ const Btn = ({ onClick, children, color = C.green, disabled, small, danger }) =>
 const Input = ({ value, onChange, placeholder, type = "text", style = {} }) => (
   <input type={type} value={value} onChange={onChange} placeholder={placeholder}
     style={{
-      background: "#2a2a2a", border: `1px solid ${C.border}`,
+      background: "#2a2a2a", border: "1px solid " + C.border,
       borderRadius: 8, padding: "8px 12px", color: C.white,
       fontSize: 13, outline: "none", fontFamily: "inherit", ...style,
     }} />
@@ -85,25 +85,65 @@ const SectionHeader = ({ icon, title, sub }) => (
 // SECTION: Bookings List
 // ═══════════════════════════════════════════════════════════════
 function BookingsSection() {
-  const [bookings, setBookings] = useState([])
-  const [loading, setLoading]   = useState(true)
+  const [bookings, setBookings]   = useState([])
+  const [loading, setLoading]     = useState(true)
+  const [noShowing, setNoShowing] = useState(null) // bookingId currently being processed
 
-  useEffect(() => {
+  const load = () =>
     getAllBookings().then(b => {
       setBookings(b.sort((a, z) => new Date(z.createdAt) - new Date(a.createdAt)))
       setLoading(false)
     })
-  }, [])
 
-  if (loading) return <p style={{ color: C.grey }}>Loading bookings…</p>
+  useEffect(() => { load() }, [])
+
+  // ── No-Show: cancel booking + free room availability ─────────
+  // Triggered when a confirmed guest doesn't arrive on check-in day.
+  // Sets status → cancelled, noShow → true, refundStatus → not_eligible,
+  // then deletes the roomAvailability doc(s) so the room is immediately bookable again.
+  const handleNoShow = async (b) => {
+    if (!window.confirm(
+      "Mark " + b.bookingId + " as no-show?\n\nThis will:\n" +
+      "  Set status to cancelled\n" +
+      "  Free up the room(s) in availability\n" +
+      "  No refund will be issued."
+    )) return
+
+    setNoShowing(b.bookingId)
+    try {
+      await updateDoc(doc(db, "bookings", b.bookingId), {
+        status:       "cancelled",
+        cancelledAt:  new Date().toISOString(),
+        refundStatus: "not_eligible",
+        noShow:       true,
+      })
+      for (const roomId of (b.roomIds || [])) {
+        const docId = (b.homestayId || HOMESTAY.id) + "_" + roomId
+        try { await deleteDoc(doc(db, "roomAvailability", docId)) } catch (_) {}
+      }
+      await load()
+    } catch (err) {
+      console.error("No-show failed:", err)
+      alert("Failed to mark no-show: " + err.message)
+    } finally {
+      setNoShowing(null)
+    }
+  }
+
+  // No-Show button only appears on confirmed bookings whose check-in date is today or past
+  const canNoShow = (b) =>
+    b.status === "confirmed" &&
+    new Date(b.checkIn + "T00:00:00") <= new Date(new Date().toDateString())
+
+  if (loading) return <p style={{ color: C.grey }}>Loading bookings...</p>
   if (!bookings.length) return <p style={{ color: C.grey }}>No bookings yet.</p>
 
   return (
     <div style={{ overflowX: "auto" }}>
       <table style={{ width: "100%", borderCollapse: "collapse", fontSize: 13 }}>
         <thead>
-          <tr style={{ borderBottom: `1px solid ${C.border}` }}>
-            {["Booking ID","Rooms","Check-in","Check-out","Nights","Guests","Total","Fee","Status","Created"].map(h => (
+          <tr style={{ borderBottom: "1px solid " + C.border }}>
+            {["Booking ID","Rooms","Check-in","Check-out","Nights","Guests","Total","Fee","Status","Created","Action"].map(h => (
               <th key={h} style={{ color: C.bamboo, fontWeight: 600, padding: "8px 12px", textAlign: "left", whiteSpace: "nowrap" }}>{h}</th>
             ))}
           </tr>
@@ -111,7 +151,7 @@ function BookingsSection() {
         <tbody>
           {bookings.map((b, i) => (
             <tr key={b.bookingId} style={{
-              borderBottom: `1px solid ${C.border}`,
+              borderBottom: "1px solid " + C.border,
               background: i % 2 === 0 ? "transparent" : "#ffffff05",
             }}>
               <td style={{ padding: "10px 12px", color: C.bamboo, fontWeight: 600, whiteSpace: "nowrap" }}>{b.bookingId}</td>
@@ -120,13 +160,30 @@ function BookingsSection() {
               <td style={{ padding: "10px 12px", color: C.grey, whiteSpace: "nowrap" }}>{b.checkOut}</td>
               <td style={{ padding: "10px 12px", color: C.white, textAlign: "center" }}>{b.nights}</td>
               <td style={{ padding: "10px 12px", color: C.white, textAlign: "center" }}>{b.guests}</td>
-              <td style={{ padding: "10px 12px", color: C.green, fontWeight: 600 }}>₹{b.totalAmount?.toLocaleString()}</td>
-              <td style={{ padding: "10px 12px", color: C.grey }}>₹{b.platformFee}</td>
+              <td style={{ padding: "10px 12px", color: C.green, fontWeight: 600 }}>&#8377;{b.totalAmount?.toLocaleString()}</td>
+              <td style={{ padding: "10px 12px", color: C.grey }}>&#8377;{b.platformFee}</td>
               <td style={{ padding: "10px 12px" }}>
-                <Badge color={b.status === "confirmed" ? C.green : C.red}>{b.status}</Badge>
+                <div style={{ display: "flex", flexDirection: "column", gap: 4 }}>
+                  <Badge color={b.status === "confirmed" ? C.green : C.red}>{b.status}</Badge>
+                  {b.noShow && <Badge color={C.amber}>no-show</Badge>}
+                </div>
               </td>
               <td style={{ padding: "10px 12px", color: C.dim, whiteSpace: "nowrap", fontSize: 11 }}>
                 {new Date(b.createdAt).toLocaleDateString("en-IN")}
+              </td>
+              <td style={{ padding: "10px 12px" }}>
+                {canNoShow(b) ? (
+                  <Btn
+                    onClick={() => handleNoShow(b)}
+                    disabled={noShowing === b.bookingId}
+                    danger
+                    small
+                  >
+                    {noShowing === b.bookingId ? "..." : "No-Show"}
+                  </Btn>
+                ) : (
+                  <span style={{ color: C.dim, fontSize: 11 }}>—</span>
+                )}
               </td>
             </tr>
           ))}
@@ -138,18 +195,14 @@ function BookingsSection() {
 
 // ═══════════════════════════════════════════════════════════════
 // SECTION: Room Availability — Per-date block/unblock controls
-//
-// Writes ADMIN_DATE_{date} docs to Firestore roomAvailability collection.
-// fetchRoomAvailability() in roomAvailability.js treats these as booked ranges,
-// so blocked dates show as unavailable on the guest-facing booking card.
 // ═══════════════════════════════════════════════════════════════
 function AvailabilitySection() {
   const [selectedRoom, setSelectedRoom] = useState(ROOM_IDS[0])
   const [selectedDate, setSelectedDate] = useState("")
-  const [blockedDates, setBlockedDates] = useState({}) // { roomId: ["2026-04-01", ...] }
+  const [blockedDates, setBlockedDates] = useState({})
   const [loading, setLoading]           = useState(true)
   const [saving, setSaving]             = useState(false)
-  const [flash, setFlash]               = useState("")   // brief confirmation message
+  const [flash, setFlash]               = useState("")
 
   const roomLabels = {
     "standard":     "Standard Room",
@@ -160,7 +213,6 @@ function AvailabilitySection() {
 
   const getTodayDate = () => new Date().toISOString().split("T")[0]
 
-  // ── Load blocked dates for all rooms from Firestore ──────────
   const fetchBlocked = async () => {
     setLoading(true)
     const result = {}
@@ -170,7 +222,6 @@ function AvailabilitySection() {
         const snap = await getDocs(collection(db, "roomAvailability"))
         snap.docs.forEach(d => {
           const data = d.data()
-          // Admin-blocked date docs use ID pattern: {homestayId}_{roomId}_ADMIN_DATE_{date}
           if (
             data.roomId === roomId &&
             data.homestayId === HOMESTAY.id &&
@@ -180,7 +231,6 @@ function AvailabilitySection() {
             result[roomId].push({ date: data.date, docId: d.id })
           }
         })
-        // Sort ascending
         result[roomId].sort((a, b) => a.date.localeCompare(b.date))
       } catch (err) {
         console.warn("fetchBlocked error:", err.message)
@@ -192,13 +242,12 @@ function AvailabilitySection() {
 
   useEffect(() => { fetchBlocked() }, [])
 
-  // ── Block a date ─────────────────────────────────────────────
   const blockDate = async () => {
     if (!selectedDate) return
     const alreadyBlocked = (blockedDates[selectedRoom] || []).some(e => e.date === selectedDate)
     if (alreadyBlocked) { setFlash("Already blocked."); setTimeout(() => setFlash(""), 2500); return }
     setSaving(true)
-    const docId = `${HOMESTAY.id}_${selectedRoom}_ADMIN_DATE_${selectedDate}`
+    const docId = HOMESTAY.id + "_" + selectedRoom + "_ADMIN_DATE_" + selectedDate
     await setDoc(doc(db, "roomAvailability", docId), {
       bookingId:         docId,
       roomId:            selectedRoom,
@@ -211,51 +260,45 @@ function AvailabilitySection() {
       adminBlock:        true,
     })
     setSaving(false)
-    setFlash(`✓ ${selectedDate} blocked for ${roomLabels[selectedRoom]}`)
+    setFlash("Blocked " + selectedDate + " for " + (roomLabels[selectedRoom] || selectedRoom))
     setTimeout(() => setFlash(""), 3000)
     await fetchBlocked()
   }
 
-  // ── Unblock a date ───────────────────────────────────────────
   const unblockDate = async (roomId, docId) => {
     setSaving(true)
     await deleteDoc(doc(db, "roomAvailability", docId))
     setSaving(false)
-    setFlash(`✓ Date unblocked`)
+    setFlash("Date unblocked")
     setTimeout(() => setFlash(""), 3000)
     await fetchBlocked()
   }
 
   return (
     <div style={{ display: "flex", flexDirection: "column", gap: 24 }}>
-
-      {/* Info banner */}
       <div style={{
-        background: C.bamboo + "11", border: `1px solid ${C.bamboo}33`,
+        background: C.bamboo + "11", border: "1px solid " + C.bamboo + "33",
         borderRadius: 10, padding: "12px 16px",
       }}>
         <p style={{ color: C.bamboo, fontSize: 12, margin: 0 }}>
-          💡 Block specific dates per room — guests won't be able to book those dates.
+          Block specific dates per room — guests won't be able to book those dates.
           Unblock at any time. Blocked dates appear as "Unavailable" on the booking page.
         </p>
       </div>
 
-      {/* Controls row */}
       <div style={{
-        background: C.card2, border: `1px solid ${C.border}`,
+        background: C.card2, border: "1px solid " + C.border,
         borderRadius: 12, padding: "18px 20px",
       }}>
         <p style={{ color: C.white, fontWeight: 600, fontSize: 14, marginBottom: 14 }}>Block a Date</p>
         <div style={{ display: "flex", gap: 12, flexWrap: "wrap", alignItems: "flex-end" }}>
-
-          {/* Room selector */}
           <div style={{ display: "flex", flexDirection: "column", gap: 5 }}>
             <label style={{ color: C.grey, fontSize: 11 }}>Room</label>
             <select
               value={selectedRoom}
               onChange={e => setSelectedRoom(e.target.value)}
               style={{
-                background: "#2a2a2a", border: `1px solid ${C.border}`,
+                background: "#2a2a2a", border: "1px solid " + C.border,
                 borderRadius: 8, padding: "8px 12px", color: C.white,
                 fontSize: 13, outline: "none", fontFamily: "inherit", cursor: "pointer",
               }}>
@@ -265,7 +308,6 @@ function AvailabilitySection() {
             </select>
           </div>
 
-          {/* Date picker */}
           <div style={{ display: "flex", flexDirection: "column", gap: 5 }}>
             <label style={{ color: C.grey, fontSize: 11 }}>Date</label>
             <input
@@ -274,42 +316,32 @@ function AvailabilitySection() {
               min={getTodayDate()}
               onChange={e => setSelectedDate(e.target.value)}
               style={{
-                background: "#2a2a2a", border: `1px solid ${C.border}`,
+                background: "#2a2a2a", border: "1px solid " + C.border,
                 borderRadius: 8, padding: "8px 12px", color: C.white,
                 fontSize: 13, outline: "none", fontFamily: "inherit",
               }}
             />
           </div>
 
-          {/* Action buttons */}
-          <div style={{ display: "flex", gap: 8, alignItems: "flex-end" }}>
-            <Btn
-              onClick={blockDate}
-              disabled={saving || !selectedDate}
-              danger
-              small={false}
-            >
-              {saving ? "…" : "Block Date"}
-            </Btn>
-          </div>
+          <Btn onClick={blockDate} disabled={saving || !selectedDate} danger>
+            {saving ? "..." : "Block Date"}
+          </Btn>
         </div>
 
-        {/* Flash message */}
         {flash && (
           <p style={{ color: C.green, fontSize: 12, marginTop: 10, marginBottom: 0 }}>{flash}</p>
         )}
       </div>
 
-      {/* Blocked dates list — per room */}
       {loading ? (
-        <p style={{ color: C.grey }}>Loading blocked dates…</p>
+        <p style={{ color: C.grey }}>Loading blocked dates...</p>
       ) : (
         <div style={{ display: "flex", flexDirection: "column", gap: 14 }}>
           {ROOM_IDS.map(roomId => {
             const entries = blockedDates[roomId] || []
             return (
               <div key={roomId} style={{
-                background: C.card2, border: `1px solid ${entries.length > 0 ? C.red + "33" : C.border}`,
+                background: C.card2, border: "1px solid " + (entries.length > 0 ? C.red + "33" : C.border),
                 borderRadius: 12, padding: "14px 18px",
               }}>
                 <div style={{ display: "flex", alignItems: "center", gap: 10, marginBottom: entries.length ? 12 : 0 }}>
@@ -317,16 +349,15 @@ function AvailabilitySection() {
                     {roomLabels[roomId] || roomId}
                   </span>
                   <Badge color={entries.length > 0 ? C.red : C.green}>
-                    {entries.length > 0 ? `${entries.length} date${entries.length > 1 ? "s" : ""} blocked` : "No blocks"}
+                    {entries.length > 0 ? entries.length + " date" + (entries.length > 1 ? "s" : "") + " blocked" : "No blocks"}
                   </Badge>
                 </div>
-
                 {entries.length > 0 && (
                   <div style={{ display: "flex", flexWrap: "wrap", gap: 8 }}>
                     {entries.map(({ date, docId }) => (
                       <div key={docId} style={{
                         display: "flex", alignItems: "center", gap: 6,
-                        background: C.red + "11", border: `1px solid ${C.red}33`,
+                        background: C.red + "11", border: "1px solid " + C.red + "33",
                         borderRadius: 8, padding: "4px 10px",
                       }}>
                         <span style={{ color: C.white, fontSize: 12 }}>{date}</span>
@@ -339,7 +370,7 @@ function AvailabilitySection() {
                             fontSize: 14, lineHeight: 1, padding: 0, opacity: saving ? 0.4 : 1,
                           }}
                           title="Unblock this date"
-                        >×</button>
+                        >x</button>
                       </div>
                     ))}
                   </div>
@@ -355,9 +386,6 @@ function AvailabilitySection() {
 
 // ═══════════════════════════════════════════════════════════════
 // SECTION: Pricing Manager
-// Firestore collection: pricing/{homestayId_roomId}
-// Fields: roomId, regularPrice, discountPrice (optional), platformFee
-// HomestayPage reads this collection on load and overrides homestays.js values.
 // ═══════════════════════════════════════════════════════════════
 function PricingSection() {
   const [prices, setPrices]   = useState({})
@@ -372,16 +400,14 @@ function PricingSection() {
     "premium-2bhk": "Premium 2BHK",
   }
 
-  // Load current prices — Firestore first, fallback to homestays.js
   const fetchPrices = async () => {
     const result = {}
     for (const room of HOMESTAY.rooms) {
-      const docId = `${HOMESTAY.id}_${room.id}`
+      const docId = HOMESTAY.id + "_" + room.id
       const snap  = await getDoc(doc(db, "pricing", docId))
       if (snap.exists()) {
         result[room.id] = snap.data()
       } else {
-        // Seed from homestays.js defaults
         result[room.id] = {
           roomId:        room.id,
           homestayId:    HOMESTAY.id,
@@ -407,7 +433,7 @@ function PricingSection() {
   const saveRoom = async (roomId) => {
     setSaving(roomId)
     const p     = prices[roomId]
-    const docId = `${HOMESTAY.id}_${roomId}`
+    const docId = HOMESTAY.id + "_" + roomId
     await setDoc(doc(db, "pricing", docId), {
       roomId,
       homestayId:    HOMESTAY.id,
@@ -421,18 +447,16 @@ function PricingSection() {
     setTimeout(() => setSaved(null), 2000)
   }
 
-  if (loading) return <p style={{ color: C.grey }}>Loading prices…</p>
+  if (loading) return <p style={{ color: C.grey }}>Loading prices...</p>
 
   return (
     <div style={{ display: "flex", flexDirection: "column", gap: 16 }}>
-
-      {/* Platform fee note */}
       <div style={{
-        background: C.bamboo + "11", border: `1px solid ${C.bamboo}33`,
+        background: C.bamboo + "11", border: "1px solid " + C.bamboo + "33",
         borderRadius: 10, padding: "12px 16px",
       }}>
         <p style={{ color: C.bamboo, fontSize: 12, margin: 0 }}>
-          💡 Platform fee is charged per room selected. Changes here reflect live on the booking card.
+          Platform fee is charged per room selected. Changes here reflect live on the booking card.
           Leave Discount Price blank to show only the regular price.
         </p>
       </div>
@@ -441,7 +465,7 @@ function PricingSection() {
         const p = prices[room.id] || {}
         return (
           <div key={room.id} style={{
-            background: C.card2, border: `1px solid ${C.border}`,
+            background: C.card2, border: "1px solid " + C.border,
             borderRadius: 12, padding: "18px 20px",
           }}>
             <p style={{
@@ -452,43 +476,24 @@ function PricingSection() {
             <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: 12, marginBottom: 14 }}>
               <div>
                 <label style={{ color: C.grey, fontSize: 11, display: "block", marginBottom: 5 }}>
-                  Regular Price (₹/night)
+                  Regular Price (&#8377;/night)
                 </label>
-                <Input
-                  type="number"
-                  value={p.regularPrice ?? ""}
-                  onChange={e => handleChange(room.id, "regularPrice", e.target.value)}
-                  placeholder="e.g. 2500"
-                  style={{ width: "100%", boxSizing: "border-box" }}
-                />
+                <Input type="number" value={p.regularPrice ?? ""} onChange={e => handleChange(room.id, "regularPrice", e.target.value)} placeholder="e.g. 2500" style={{ width: "100%", boxSizing: "border-box" }} />
               </div>
               <div>
                 <label style={{ color: C.grey, fontSize: 11, display: "block", marginBottom: 5 }}>
-                  Discount Price (₹/night) <span style={{ color: C.dim }}>· optional</span>
+                  Discount Price (&#8377;/night) <span style={{ color: C.dim }}>optional</span>
                 </label>
-                <Input
-                  type="number"
-                  value={p.discountPrice ?? ""}
-                  onChange={e => handleChange(room.id, "discountPrice", e.target.value)}
-                  placeholder="Leave blank to hide"
-                  style={{ width: "100%", boxSizing: "border-box" }}
-                />
+                <Input type="number" value={p.discountPrice ?? ""} onChange={e => handleChange(room.id, "discountPrice", e.target.value)} placeholder="Leave blank to hide" style={{ width: "100%", boxSizing: "border-box" }} />
               </div>
               <div>
                 <label style={{ color: C.grey, fontSize: 11, display: "block", marginBottom: 5 }}>
-                  Platform Fee (₹/room)
+                  Platform Fee (&#8377;/room)
                 </label>
-                <Input
-                  type="number"
-                  value={p.platformFee ?? ""}
-                  onChange={e => handleChange(room.id, "platformFee", e.target.value)}
-                  placeholder="e.g. 149"
-                  style={{ width: "100%", boxSizing: "border-box" }}
-                />
+                <Input type="number" value={p.platformFee ?? ""} onChange={e => handleChange(room.id, "platformFee", e.target.value)} placeholder="e.g. 149" style={{ width: "100%", boxSizing: "border-box" }} />
               </div>
             </div>
 
-            {/* Preview */}
             <div style={{
               display: "flex", gap: 16, alignItems: "center",
               marginBottom: 14, padding: "8px 12px",
@@ -497,27 +502,21 @@ function PricingSection() {
               <span style={{ color: C.dim, fontSize: 12 }}>Preview:</span>
               {p.discountPrice ? (
                 <>
-                  <span style={{ color: C.dim, fontSize: 13, textDecoration: "line-through" }}>₹{p.regularPrice?.toLocaleString()}</span>
-                  <span style={{ color: C.green, fontWeight: 700, fontSize: 15 }}>₹{Number(p.discountPrice).toLocaleString()}</span>
-                  <Badge color={C.green}>
-                    {Math.round((1 - p.discountPrice / p.regularPrice) * 100)}% off
-                  </Badge>
+                  <span style={{ color: C.dim, fontSize: 13, textDecoration: "line-through" }}>&#8377;{p.regularPrice?.toLocaleString()}</span>
+                  <span style={{ color: C.green, fontWeight: 700, fontSize: 15 }}>&#8377;{Number(p.discountPrice).toLocaleString()}</span>
+                  <Badge color={C.green}>{Math.round((1 - p.discountPrice / p.regularPrice) * 100)}% off</Badge>
                 </>
               ) : (
-                <span style={{ color: C.white, fontWeight: 700, fontSize: 15 }}>₹{p.regularPrice?.toLocaleString()}</span>
+                <span style={{ color: C.white, fontWeight: 700, fontSize: 15 }}>&#8377;{p.regularPrice?.toLocaleString()}</span>
               )}
-              <span style={{ color: C.dim, fontSize: 12, marginLeft: "auto" }}>
-                Platform fee: ₹{p.platformFee}
-              </span>
+              <span style={{ color: C.dim, fontSize: 12, marginLeft: "auto" }}>Platform fee: &#8377;{p.platformFee}</span>
             </div>
 
             <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
               <Btn onClick={() => saveRoom(room.id)} disabled={saving === room.id}>
-                {saving === room.id ? "Saving…" : "Save Prices"}
+                {saving === room.id ? "Saving..." : "Save Prices"}
               </Btn>
-              {saved === room.id && (
-                <span style={{ color: C.green, fontSize: 12 }}>✓ Saved</span>
-              )}
+              {saved === room.id && <span style={{ color: C.green, fontSize: 12 }}>Saved</span>}
             </div>
           </div>
         )
@@ -530,10 +529,10 @@ function PricingSection() {
 // SECTION: Reviews Manager
 // ═══════════════════════════════════════════════════════════════
 function ReviewsSection() {
-  const [reviews, setReviews]   = useState([])
-  const [loading, setLoading]   = useState(true)
-  const [form, setForm]         = useState({ name: "", location: "", text: "", rating: 5, tag: "" })
-  const [saving, setSaving]     = useState(false)
+  const [reviews, setReviews] = useState([])
+  const [loading, setLoading] = useState(true)
+  const [form, setForm]       = useState({ name: "", location: "", text: "", rating: 5, tag: "" })
+  const [saving, setSaving]   = useState(false)
 
   const fetchReviews = async () => {
     const snap = await getDocs(collection(db, "reviews"))
@@ -571,43 +570,43 @@ function ReviewsSection() {
   return (
     <div>
       <div style={{
-        background: C.card2, border: `1px solid ${C.border}`,
+        background: C.card2, border: "1px solid " + C.border,
         borderRadius: 12, padding: 18, marginBottom: 20,
       }}>
         <p style={{ color: C.bamboo, fontWeight: 600, fontSize: 13, marginBottom: 12 }}>Add Review</p>
         <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 10, marginBottom: 10 }}>
           <Input value={form.name} onChange={e => setForm(f => ({ ...f, name: e.target.value }))} placeholder="Guest name" />
           <Input value={form.location} onChange={e => setForm(f => ({ ...f, location: e.target.value }))} placeholder="Location (e.g. Delhi)" />
-          <Input value={form.tag} onChange={e => setForm(f => ({ ...f, tag: e.target.value }))} placeholder='Tag (e.g. "Family Stay")' />
+          <Input value={form.tag} onChange={e => setForm(f => ({ ...f, tag: e.target.value }))} placeholder="Tag (e.g. Family Stay)" />
           <Input type="number" value={form.rating} onChange={e => setForm(f => ({ ...f, rating: e.target.value }))} placeholder="Rating (1-5)" style={{ width: "100%" }} />
         </div>
         <textarea value={form.text} onChange={e => setForm(f => ({ ...f, text: e.target.value }))}
-          placeholder="Review text…" rows={3}
+          placeholder="Review text..." rows={3}
           style={{
-            width: "100%", background: "#2a2a2a", border: `1px solid ${C.border}`,
+            width: "100%", background: "#2a2a2a", border: "1px solid " + C.border,
             borderRadius: 8, padding: "8px 12px", color: C.white, fontSize: 13,
             outline: "none", resize: "vertical", fontFamily: "inherit", boxSizing: "border-box",
             marginBottom: 10,
           }} />
-        <Btn onClick={addReview} disabled={saving}>{saving ? "Saving…" : "Add Review"}</Btn>
+        <Btn onClick={addReview} disabled={saving}>{saving ? "Saving..." : "Add Review"}</Btn>
       </div>
 
       <div style={{ display: "flex", gap: 16, marginBottom: 16 }}>
-        <div style={{ background: C.card2, borderRadius: 10, padding: "10px 18px", border: `1px solid ${C.border}` }}>
+        <div style={{ background: C.card2, borderRadius: 10, padding: "10px 18px", border: "1px solid " + C.border }}>
           <span style={{ color: C.grey, fontSize: 11 }}>Total Reviews</span>
           <p style={{ color: C.white, fontWeight: 700, fontSize: 22, margin: 0 }}>{reviews.length}</p>
         </div>
-        <div style={{ background: C.card2, borderRadius: 10, padding: "10px 18px", border: `1px solid ${C.border}` }}>
+        <div style={{ background: C.card2, borderRadius: 10, padding: "10px 18px", border: "1px solid " + C.border }}>
           <span style={{ color: C.grey, fontSize: 11 }}>Average Rating</span>
-          <p style={{ color: C.bamboo, fontWeight: 700, fontSize: 22, margin: 0 }}>⭐ {avg}</p>
+          <p style={{ color: C.bamboo, fontWeight: 700, fontSize: 22, margin: 0 }}>&#11088; {avg}</p>
         </div>
       </div>
 
-      {loading ? <p style={{ color: C.grey }}>Loading…</p> : (
+      {loading ? <p style={{ color: C.grey }}>Loading...</p> : (
         <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
           {reviews.map(r => (
             <div key={r.id} style={{
-              background: C.card2, border: `1px solid ${C.border}`,
+              background: C.card2, border: "1px solid " + C.border,
               borderRadius: 10, padding: "12px 16px",
               display: "flex", justifyContent: "space-between", alignItems: "flex-start", gap: 12,
             }}>
@@ -670,23 +669,23 @@ function MomentsSection() {
   return (
     <div>
       <div style={{
-        background: C.card2, border: `1px solid ${C.border}`,
+        background: C.card2, border: "1px solid " + C.border,
         borderRadius: 12, padding: 18, marginBottom: 20,
       }}>
         <p style={{ color: C.bamboo, fontWeight: 600, fontSize: 13, marginBottom: 12 }}>Add Moment Photo</p>
         <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 10, marginBottom: 10 }}>
           <Input value={form.url} onChange={e => setForm(f => ({ ...f, url: e.target.value }))} placeholder="Image URL or /public path" style={{ gridColumn: "1 / -1" }} />
           <Input value={form.caption} onChange={e => setForm(f => ({ ...f, caption: e.target.value }))} placeholder="Caption" />
-          <Input value={form.tag} onChange={e => setForm(f => ({ ...f, tag: e.target.value }))} placeholder='Tag (e.g. "Sunrise View")' />
+          <Input value={form.tag} onChange={e => setForm(f => ({ ...f, tag: e.target.value }))} placeholder="Tag (e.g. Sunrise View)" />
         </div>
-        <Btn onClick={addMoment} disabled={saving}>{saving ? "Saving…" : "Add Moment"}</Btn>
+        <Btn onClick={addMoment} disabled={saving}>{saving ? "Saving..." : "Add Moment"}</Btn>
       </div>
 
-      {loading ? <p style={{ color: C.grey }}>Loading…</p> : (
+      {loading ? <p style={{ color: C.grey }}>Loading...</p> : (
         <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(180px, 1fr))", gap: 12 }}>
           {moments.map(m => (
             <div key={m.id} style={{
-              background: C.card2, border: `1px solid ${C.border}`,
+              background: C.card2, border: "1px solid " + C.border,
               borderRadius: 10, overflow: "hidden",
             }}>
               <div style={{ height: 120, background: "#2a2a2a" }}>
@@ -736,10 +735,10 @@ function RefundsSection() {
     setMarking(null)
   }
 
-  if (loading) return <p style={{ color: C.grey }}>Loading…</p>
+  if (loading) return <p style={{ color: C.grey }}>Loading...</p>
   if (!bookings.length) return (
     <div style={{ textAlign: "center", padding: "40px 0" }}>
-      <p style={{ fontSize: 32, marginBottom: 8 }}>✅</p>
+      <p style={{ fontSize: 32, marginBottom: 8 }}>&#10003;</p>
       <p style={{ color: C.grey }}>No cancelled bookings. All clear.</p>
     </div>
   )
@@ -750,56 +749,60 @@ function RefundsSection() {
   return (
     <div>
       {pending.length > 0 && (
-        <>
+        <div>
           <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 12 }}>
-            <Badge color={C.red}>⚠ {pending.length} Pending Refund{pending.length > 1 ? "s" : ""}</Badge>
+            <Badge color={C.red}>{pending.length} Pending Refund{pending.length > 1 ? "s" : ""}</Badge>
           </div>
           <div style={{ display: "flex", flexDirection: "column", gap: 10, marginBottom: 24 }}>
             {pending.map(b => (
               <div key={b.bookingId} style={{
-                background: "#ef444408", border: `1px solid ${C.red}33`,
+                background: "#ef444408", border: "1px solid " + C.red + "33",
                 borderRadius: 10, padding: "14px 16px",
                 display: "flex", justifyContent: "space-between", alignItems: "center", gap: 12,
               }}>
                 <div>
                   <p style={{ color: C.white, fontWeight: 600, fontSize: 13, margin: "0 0 4px" }}>{b.bookingId}</p>
                   <p style={{ color: C.grey, fontSize: 12, margin: "0 0 2px" }}>
-                    Rooms: {(b.roomIds || []).join(", ")} · {b.checkIn} → {b.checkOut}
+                    Rooms: {(b.roomIds || []).join(", ")} · {b.checkIn} to {b.checkOut}
                   </p>
                   <p style={{ color: C.grey, fontSize: 12, margin: 0 }}>
-                    Platform fee paid: <span style={{ color: C.red, fontWeight: 600 }}>₹{b.platformFee}</span>
+                    Platform fee paid: <span style={{ color: C.red, fontWeight: 600 }}>&#8377;{b.platformFee}</span>
                     {" "}· Cancelled: {b.cancelledAt ? new Date(b.cancelledAt).toLocaleDateString("en-IN") : "—"}
+                    {b.noShow && <span style={{ color: C.amber, marginLeft: 8 }}>· no-show</span>}
                   </p>
                 </div>
-                <Btn onClick={() => markRefunded(b.bookingId)} disabled={marking === b.bookingId} small>
-                  {marking === b.bookingId ? "…" : "Mark Refunded"}
-                </Btn>
+                {!b.noShow && (
+                  <Btn onClick={() => markRefunded(b.bookingId)} disabled={marking === b.bookingId} small>
+                    {marking === b.bookingId ? "..." : "Mark Refunded"}
+                  </Btn>
+                )}
+                {b.noShow && <Badge color={C.amber}>No Refund</Badge>}
               </div>
             ))}
           </div>
-        </>
+        </div>
       )}
       {refunded.length > 0 && (
-        <>
+        <div>
           <p style={{ color: C.dim, fontSize: 12, marginBottom: 10 }}>Refunded ({refunded.length})</p>
           <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
             {refunded.map(b => (
               <div key={b.bookingId} style={{
-                background: C.card2, border: `1px solid ${C.border}`,
+                background: C.card2, border: "1px solid " + C.border,
                 borderRadius: 10, padding: "12px 16px",
                 display: "flex", justifyContent: "space-between", alignItems: "center",
               }}>
                 <div>
                   <p style={{ color: C.grey, fontSize: 12, margin: "0 0 2px", fontWeight: 600 }}>{b.bookingId}</p>
                   <p style={{ color: C.dim, fontSize: 11, margin: 0 }}>
-                    ₹{b.platformFee} · Refunded {b.refundedAt ? new Date(b.refundedAt).toLocaleDateString("en-IN") : ""}
+                    &#8377;{b.platformFee} · Refunded {b.refundedAt ? new Date(b.refundedAt).toLocaleDateString("en-IN") : ""}
                   </p>
                 </div>
                 <Badge color={C.green}>Refunded</Badge>
               </div>
             ))}
           </div>
-        </>
+        </div>
       )}
     </div>
   )
@@ -809,19 +812,19 @@ function RefundsSection() {
 // MAIN: AdminPage
 // ═══════════════════════════════════════════════════════════════
 const TABS = [
-  { id: "bookings",     icon: "📋", label: "Bookings"     },
-  { id: "availability",icon: "🛏",  label: "Availability" },
-  { id: "pricing",     icon: "💰", label: "Pricing"      },
-  { id: "reviews",     icon: "⭐",  label: "Reviews"      },
-  { id: "moments",     icon: "📸",  label: "Moments"      },
-  { id: "refunds",     icon: "💸",  label: "Refunds"      },
+  { id: "bookings",      icon: "📋", label: "Bookings"     },
+  { id: "availability",  icon: "🛏",  label: "Availability" },
+  { id: "pricing",       icon: "💰", label: "Pricing"      },
+  { id: "reviews",       icon: "⭐",  label: "Reviews"      },
+  { id: "moments",       icon: "📸",  label: "Moments"      },
+  { id: "refunds",       icon: "💸",  label: "Refunds"      },
 ]
 
 export default function AdminPage() {
   const { currentUser } = useAuth()
   const navigate        = useNavigate()
-  const [activeTab, setActiveTab]     = useState("bookings")
-  const [authorized, setAuthorized]   = useState(null)
+  const [activeTab, setActiveTab]   = useState("bookings")
+  const [authorized, setAuthorized] = useState(null)
 
   useEffect(() => {
     if (!currentUser) { setAuthorized(false); return }
@@ -830,7 +833,7 @@ export default function AdminPage() {
 
   if (authorized === null) return (
     <div style={{ minHeight: "100vh", background: C.bg, display: "flex", alignItems: "center", justifyContent: "center" }}>
-      <p style={{ color: C.grey }}>Checking access…</p>
+      <p style={{ color: C.grey }}>Checking access...</p>
     </div>
   )
 
@@ -839,25 +842,24 @@ export default function AdminPage() {
       minHeight: "100vh", background: C.bg,
       display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", gap: 16,
     }}>
-      <p style={{ fontSize: 40 }}>🔒</p>
+      <p style={{ fontSize: 40 }}>&#128274;</p>
       <h2 style={{ color: C.white, fontFamily: "'Playfair Display', serif", margin: 0 }}>Admin Access Only</h2>
       <p style={{ color: C.grey, fontSize: 13 }}>
-        {currentUser ? `${currentUser.phoneNumber} is not authorized as admin.` : "Please log in with the admin phone number."}
+        {currentUser ? currentUser.phoneNumber + " is not authorized as admin." : "Please log in with the admin phone number."}
       </p>
       <button onClick={() => navigate("/")}
         style={{
-          background: C.green + "22", color: C.green, border: `1px solid ${C.green}44`,
+          background: C.green + "22", color: C.green, border: "1px solid " + C.green + "44",
           borderRadius: 8, padding: "8px 20px", fontSize: 13, cursor: "pointer", fontFamily: "inherit",
-        }}>← Back to Home</button>
+        }}>Back to Home</button>
     </div>
   )
 
   return (
     <div style={{ minHeight: "100vh", background: C.bg, fontFamily: "'Inter', sans-serif" }}>
 
-      {/* Top bar */}
       <div style={{
-        background: C.card, borderBottom: `1px solid ${C.border}`,
+        background: C.card, borderBottom: "1px solid " + C.border,
         padding: "14px 24px", display: "flex", alignItems: "center", justifyContent: "space-between",
       }}>
         <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
@@ -873,17 +875,16 @@ export default function AdminPage() {
           <span style={{ color: C.dim, fontSize: 12 }}>{currentUser?.phoneNumber}</span>
           <button onClick={() => navigate("/")}
             style={{
-              background: "transparent", color: C.grey, border: `1px solid ${C.border}`,
+              background: "transparent", color: C.grey, border: "1px solid " + C.border,
               borderRadius: 8, padding: "6px 14px", fontSize: 12, cursor: "pointer", fontFamily: "inherit",
-            }}>← Site</button>
+            }}>Site</button>
         </div>
       </div>
 
       <div style={{ display: "flex", minHeight: "calc(100vh - 57px)" }}>
 
-        {/* Sidebar */}
         <div style={{
-          width: 200, background: C.card, borderRight: `1px solid ${C.border}`,
+          width: 200, background: C.card, borderRight: "1px solid " + C.border,
           padding: "20px 0", flexShrink: 0,
         }}>
           {TABS.map(tab => (
@@ -891,7 +892,7 @@ export default function AdminPage() {
               style={{
                 width: "100%", background: activeTab === tab.id ? C.green + "22" : "transparent",
                 color: activeTab === tab.id ? C.white : C.grey,
-                border: "none", borderLeft: activeTab === tab.id ? `3px solid ${C.green}` : "3px solid transparent",
+                border: "none", borderLeft: activeTab === tab.id ? "3px solid " + C.green : "3px solid transparent",
                 padding: "12px 20px", fontSize: 13, fontWeight: activeTab === tab.id ? 600 : 400,
                 cursor: "pointer", textAlign: "left", display: "flex", alignItems: "center", gap: 10,
                 fontFamily: "inherit", transition: "all 0.15s",
@@ -901,7 +902,6 @@ export default function AdminPage() {
           ))}
         </div>
 
-        {/* Main content */}
         <div style={{ flex: 1, padding: "28px 32px", overflowY: "auto" }}>
           {activeTab === "bookings"     && <><SectionHeader icon="📋" title="All Bookings"      sub="Complete booking history across all rooms" /><BookingsSection /></>}
           {activeTab === "availability" && <><SectionHeader icon="🛏" title="Room Availability" sub="Manually block or unblock rooms" /><AvailabilitySection /></>}
