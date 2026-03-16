@@ -87,7 +87,7 @@ const SectionHeader = ({ icon, title, sub }) => (
 function BookingsSection() {
   const [bookings, setBookings]   = useState([])
   const [loading, setLoading]     = useState(true)
-  const [noShowing, setNoShowing] = useState(null) // bookingId currently being processed
+  const [noShowing, setNoShowing] = useState(null)
 
   const load = () =>
     getAllBookings().then(b => {
@@ -97,16 +97,14 @@ function BookingsSection() {
 
   useEffect(() => { load() }, [])
 
-  // ── No-Show: cancel booking + free room availability ─────────
-  // Triggered when a confirmed guest doesn't arrive on check-in day.
-  // Sets status → cancelled, noShow → true, refundStatus → not_eligible,
-  // then deletes the roomAvailability doc(s) so the room is immediately bookable again.
+  // No-Show: cancel booking + delete roomAvailability docs for those rooms.
+  // Available on ALL confirmed bookings regardless of date —
+  // admin may need to clear a future booking if guest confirms they won't show.
   const handleNoShow = async (b) => {
     if (!window.confirm(
-      "Mark " + b.bookingId + " as no-show?\n\nThis will:\n" +
-      "  Set status to cancelled\n" +
-      "  Free up the room(s) in availability\n" +
-      "  No refund will be issued."
+      "Mark " + b.bookingId + " as no-show?\n\n" +
+      "This will cancel the booking and free up the room(s) in availability.\n" +
+      "No refund will be issued."
     )) return
 
     setNoShowing(b.bookingId)
@@ -129,11 +127,6 @@ function BookingsSection() {
       setNoShowing(null)
     }
   }
-
-  // No-Show button only appears on confirmed bookings whose check-in date is today or past
-  const canNoShow = (b) =>
-    b.status === "confirmed" &&
-    new Date(b.checkIn + "T00:00:00") <= new Date(new Date().toDateString())
 
   if (loading) return <p style={{ color: C.grey }}>Loading bookings...</p>
   if (!bookings.length) return <p style={{ color: C.grey }}>No bookings yet.</p>
@@ -172,7 +165,7 @@ function BookingsSection() {
                 {new Date(b.createdAt).toLocaleDateString("en-IN")}
               </td>
               <td style={{ padding: "10px 12px" }}>
-                {canNoShow(b) ? (
+                {b.status === "confirmed" ? (
                   <Btn
                     onClick={() => handleNoShow(b)}
                     disabled={noShowing === b.bookingId}
@@ -771,12 +764,13 @@ function RefundsSection() {
                     {b.noShow && <span style={{ color: C.amber, marginLeft: 8 }}>· no-show</span>}
                   </p>
                 </div>
-                {!b.noShow && (
+                {b.noShow ? (
+                  <Badge color={C.amber}>No Refund</Badge>
+                ) : (
                   <Btn onClick={() => markRefunded(b.bookingId)} disabled={marking === b.bookingId} small>
                     {marking === b.bookingId ? "..." : "Mark Refunded"}
                   </Btn>
                 )}
-                {b.noShow && <Badge color={C.amber}>No Refund</Badge>}
               </div>
             ))}
           </div>
@@ -812,12 +806,12 @@ function RefundsSection() {
 // MAIN: AdminPage
 // ═══════════════════════════════════════════════════════════════
 const TABS = [
-  { id: "bookings",      icon: "📋", label: "Bookings"     },
-  { id: "availability",  icon: "🛏",  label: "Availability" },
-  { id: "pricing",       icon: "💰", label: "Pricing"      },
-  { id: "reviews",       icon: "⭐",  label: "Reviews"      },
-  { id: "moments",       icon: "📸",  label: "Moments"      },
-  { id: "refunds",       icon: "💸",  label: "Refunds"      },
+  { id: "bookings",     icon: "📋", label: "Bookings"     },
+  { id: "availability", icon: "🛏",  label: "Availability" },
+  { id: "pricing",      icon: "💰", label: "Pricing"      },
+  { id: "reviews",      icon: "⭐",  label: "Reviews"      },
+  { id: "moments",      icon: "📸",  label: "Moments"      },
+  { id: "refunds",      icon: "💸",  label: "Refunds"      },
 ]
 
 export default function AdminPage() {
@@ -877,7 +871,7 @@ export default function AdminPage() {
             style={{
               background: "transparent", color: C.grey, border: "1px solid " + C.border,
               borderRadius: 8, padding: "6px 14px", fontSize: 12, cursor: "pointer", fontFamily: "inherit",
-            }}>Site</button>
+            }}>&#8592; Site</button>
         </div>
       </div>
 
