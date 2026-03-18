@@ -6,6 +6,7 @@ import {
   collection, getDocs, doc, updateDoc
 } from "firebase/firestore"
 import { db }                  from "../firebase"
+import { cancelBooking }       from "../data/roomAvailability"
 import {
   ArrowLeft, Phone, CheckCircle2, Clock, AlertTriangle, X
 } from "lucide-react"
@@ -55,7 +56,7 @@ function StatusBadge({ status, checkIn }) {
   return (
     <span style={{
       background: color + "22", color,
-      border: `1px solid ${color}44`,
+      border: "1px solid " + color + "44",
       borderRadius: 6, padding: "3px 10px",
       fontSize: 11, fontWeight: 600, whiteSpace: "nowrap",
     }}>{label}</span>
@@ -72,7 +73,7 @@ function CancelModal({ booking, onConfirm, onClose, cancelling }) {
       display: "flex", alignItems: "center", justifyContent: "center", padding: 16,
     }}>
       <div style={{
-        background: C.card, border: `1px solid ${C.border}`,
+        background: C.card, border: "1px solid " + C.border,
         borderRadius: 24, padding: 24, maxWidth: 360, width: "100%",
         position: "relative",
       }}>
@@ -97,7 +98,7 @@ function CancelModal({ booking, onConfirm, onClose, cancelling }) {
         </div>
 
         <div style={{
-          background: C.card2, border: `1px solid ${C.border}`,
+          background: C.card2, border: "1px solid " + C.border,
           borderRadius: 12, padding: "12px 16px", marginBottom: 16,
         }}>
           <p style={{ color: C.grey, fontSize: 12, margin: "0 0 4px" }}>
@@ -113,7 +114,7 @@ function CancelModal({ booking, onConfirm, onClose, cancelling }) {
 
         {eligible48 ? (
           <div style={{
-            background: C.green + "11", border: `1px solid ${C.green}33`,
+            background: C.green + "11", border: "1px solid " + C.green + "33",
             borderRadius: 10, padding: "10px 14px", marginBottom: 16,
           }}>
             <p style={{ color: C.green, fontSize: 12, fontWeight: 600, margin: "0 0 2px" }}>&#10003; Eligible for full refund</p>
@@ -123,7 +124,7 @@ function CancelModal({ booking, onConfirm, onClose, cancelling }) {
           </div>
         ) : (
           <div style={{
-            background: C.red + "11", border: `1px solid ${C.red}33`,
+            background: C.red + "11", border: "1px solid " + C.red + "33",
             borderRadius: 10, padding: "10px 14px", marginBottom: 16,
           }}>
             <p style={{ color: C.red, fontSize: 12, fontWeight: 600, margin: "0 0 2px" }}>No refund applicable</p>
@@ -136,13 +137,13 @@ function CancelModal({ booking, onConfirm, onClose, cancelling }) {
         <div style={{ display: "flex", gap: 10 }}>
           <button onClick={onClose} disabled={cancelling} style={{
             flex: 1, background: C.card2, color: C.grey,
-            border: `1px solid ${C.border}`, borderRadius: 12,
+            border: "1px solid " + C.border, borderRadius: 12,
             padding: "12px 0", fontSize: 13, fontWeight: 600,
             cursor: "pointer", fontFamily: "inherit",
           }}>Keep Booking</button>
           <button onClick={onConfirm} disabled={cancelling} style={{
             flex: 1, background: C.red + "22", color: C.red,
-            border: `1px solid ${C.red}44`, borderRadius: 12,
+            border: "1px solid " + C.red + "44", borderRadius: 12,
             padding: "12px 0", fontSize: 13, fontWeight: 600,
             cursor: cancelling ? "not-allowed" : "pointer",
             opacity: cancelling ? 0.5 : 1, fontFamily: "inherit",
@@ -160,7 +161,7 @@ function BookingCard({ booking, onCancelClick }) {
 
   return (
     <div style={{
-      background: C.card, border: `1px solid ${C.border}`,
+      background: C.card, border: "1px solid " + C.border,
       borderRadius: 20, padding: "18px 20px", marginBottom: 14,
     }}>
       <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", marginBottom: 12 }}>
@@ -221,7 +222,7 @@ function BookingCard({ booking, onCancelClick }) {
       {/* Case 1: refunded */}
       {booking.status === "cancelled" && booking.refundStatus === "refunded" && (
         <div style={{
-          background: C.green + "11", border: `1px solid ${C.green}33`,
+          background: C.green + "11", border: "1px solid " + C.green + "33",
           borderRadius: 10, padding: "8px 14px", marginBottom: 14,
           display: "flex", alignItems: "center", gap: 8,
         }}>
@@ -235,7 +236,7 @@ function BookingCard({ booking, onCancelClick }) {
       {/* Case 2: pending */}
       {booking.status === "cancelled" && booking.refundStatus === "pending" && (
         <div style={{
-          background: C.bamboo + "11", border: `1px solid ${C.bamboo}33`,
+          background: C.bamboo + "11", border: "1px solid " + C.bamboo + "33",
           borderRadius: 10, padding: "8px 14px", marginBottom: 14,
           display: "flex", alignItems: "center", gap: 8,
         }}>
@@ -250,7 +251,7 @@ function BookingCard({ booking, onCancelClick }) {
 
       {booking.status === "confirmed" && hrs > 0 && hrs <= 48 && (
         <div style={{
-          background: C.red + "0d", border: `1px solid ${C.red}22`,
+          background: C.red + "0d", border: "1px solid " + C.red + "22",
           borderRadius: 10, padding: "8px 14px", marginBottom: 14,
         }}>
           <p style={{ color: C.red, fontSize: 12, margin: 0 }}>
@@ -263,7 +264,7 @@ function BookingCard({ booking, onCancelClick }) {
         {canCancel && (
           <button onClick={() => onCancelClick(booking)} style={{
             flex: 1, background: C.red + "11", color: C.red,
-            border: `1px solid ${C.red}33`, borderRadius: 12,
+            border: "1px solid " + C.red + "33", borderRadius: 12,
             padding: "10px 0", fontSize: 13, fontWeight: 600,
             cursor: "pointer", fontFamily: "inherit",
           }}>
@@ -276,7 +277,7 @@ function BookingCard({ booking, onCancelClick }) {
           rel="noopener noreferrer"
           style={{
             flex: 1, background: C.green + "22", color: C.green,
-            border: `1px solid ${C.green}44`, borderRadius: 12,
+            border: "1px solid " + C.green + "44", borderRadius: 12,
             padding: "10px 0", fontSize: 13, fontWeight: 600,
             cursor: "pointer", fontFamily: "inherit",
             textDecoration: "none", display: "flex", alignItems: "center",
@@ -320,11 +321,21 @@ export default function BookingsPage({ onLogoClick }) {
     const eligible     = hoursUntilCheckIn(cancelTarget.checkIn) > 48
     const refundStatus = eligible ? "pending" : "not_eligible"
     try {
+      // 1. Update booking doc status
       await updateDoc(doc(db, "bookings", cancelTarget.bookingId), {
         status:      "cancelled",
         cancelledAt: new Date().toISOString(),
         refundStatus,
       })
+
+      // 2. Delete bookedRanges from roomAvailability so those dates open up again
+      await cancelBooking(
+        cancelTarget.bookingId,
+        cancelTarget.homestayId,
+        cancelTarget.roomIds || []
+      )
+
+      // 3. Update local state so UI reflects immediately
       setBookings(prev =>
         prev.map(b => b.bookingId === cancelTarget.bookingId
           ? { ...b, status: "cancelled", cancelledAt: new Date().toISOString(), refundStatus }
@@ -403,7 +414,7 @@ export default function BookingsPage({ onLogoClick }) {
 
         <div style={{
           display: "flex", gap: 0, marginBottom: 20,
-          background: C.card, borderRadius: 12, border: `1px solid ${C.border}`,
+          background: C.card, borderRadius: 12, border: "1px solid " + C.border,
           overflow: "hidden",
         }}>
           {[
