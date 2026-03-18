@@ -321,21 +321,16 @@ export default function BookingsPage({ onLogoClick }) {
     const eligible     = hoursUntilCheckIn(cancelTarget.checkIn) > 48
     const refundStatus = eligible ? "pending" : "not_eligible"
     try {
-      // 1. Update booking doc status
       await updateDoc(doc(db, "bookings", cancelTarget.bookingId), {
         status:      "cancelled",
         cancelledAt: new Date().toISOString(),
         refundStatus,
       })
-
-      // 2. Delete bookedRanges from roomAvailability so those dates open up again
       await cancelBooking(
         cancelTarget.bookingId,
         cancelTarget.homestayId,
         cancelTarget.roomIds || []
       )
-
-      // 3. Update local state so UI reflects immediately
       setBookings(prev =>
         prev.map(b => b.bookingId === cancelTarget.bookingId
           ? { ...b, status: "cancelled", cancelledAt: new Date().toISOString(), refundStatus }
@@ -469,6 +464,7 @@ export default function BookingsPage({ onLogoClick }) {
           ))
         )}
 
+        {/* Nest Escapes + WhatsApp Support — only when user has active upcoming bookings */}
         {upcoming.length > 0 && (
           <div>
             <div style={{ borderTop: "1px solid " + C.border, margin: "28px 0" }} />
@@ -537,31 +533,32 @@ export default function BookingsPage({ onLogoClick }) {
                 </a>
               </div>
             </div>
+
+            {/* WhatsApp Support — only visible alongside active bookings */}
+            <div style={{
+              marginTop: 28, background: C.card,
+              border: "1px solid " + C.border, borderRadius: 16,
+              padding: "16px 20px", textAlign: "center",
+            }}>
+              <p style={{ color: C.grey, fontSize: 13, margin: "0 0 10px" }}>
+                Need help with a booking? Reach us on WhatsApp
+              </p>
+              <a
+                href={"https://wa.me/" + OWNER_WHATSAPP + "?text=Hi, I need help with my Soul Nest booking"}
+                target="_blank"
+                rel="noopener noreferrer"
+                style={{
+                  display: "inline-flex", alignItems: "center", gap: 6,
+                  background: C.green + "22", color: C.green,
+                  border: "1px solid " + C.green + "44", borderRadius: 10,
+                  padding: "8px 20px", fontSize: 13, fontWeight: 600,
+                  textDecoration: "none",
+                }}>
+                <Phone size={13} /> WhatsApp Support
+              </a>
+            </div>
           </div>
         )}
-
-        <div style={{
-          marginTop: 28, background: C.card,
-          border: "1px solid " + C.border, borderRadius: 16,
-          padding: "16px 20px", textAlign: "center",
-        }}>
-          <p style={{ color: C.grey, fontSize: 13, margin: "0 0 10px" }}>
-            Need help with a booking? Reach us on WhatsApp
-          </p>
-          <a
-            href={"https://wa.me/" + OWNER_WHATSAPP + "?text=Hi, I need help with my Soul Nest booking"}
-            target="_blank"
-            rel="noopener noreferrer"
-            style={{
-              display: "inline-flex", alignItems: "center", gap: 6,
-              background: C.green + "22", color: C.green,
-              border: "1px solid " + C.green + "44", borderRadius: 10,
-              padding: "8px 20px", fontSize: 13, fontWeight: 600,
-              textDecoration: "none",
-            }}>
-            <Phone size={13} /> WhatsApp Support
-          </a>
-        </div>
 
       </div>
 
