@@ -68,14 +68,12 @@ const nestEscapeDetails = {
   },
 }
 
-// ── Core 72hr logic ───────────────────────────────────────────
 function hoursUntilCheckIn(checkInStr) {
   if (!checkInStr) return Infinity
   const checkInDate = new Date(checkInStr + "T00:00:00")
   return (checkInDate - new Date()) / 3600000
 }
 
-// ── Phone validation — Indian & international ─────────────────
 function validatePhone(raw) {
   const cleaned = raw.replace(/[\s\-().]/g, "")
   if (!cleaned) return false
@@ -84,7 +82,6 @@ function validatePhone(raw) {
   return false
 }
 
-// ── Guest Details Popup ───────────────────────────────────────
 function GuestDetailsPopup({ onClose, onConfirm }) {
   const [name, setName]          = useState("")
   const [contact, setContact]    = useState("")
@@ -239,7 +236,6 @@ function GuestDetailsPopup({ onClose, onConfirm }) {
   )
 }
 
-// ── Shared summary rows used in both popups ───────────────────
 function SummaryRows({ h, selectedRooms, checkIn, checkOut, guests, nights, showFee, scaledFee, guestDetails }) {
   const roomsSubtotal = selectedRooms.reduce((sum, r) => {
     const p = r.discountPrice ?? r.regularPrice
@@ -267,7 +263,7 @@ function SummaryRows({ h, selectedRooms, checkIn, checkOut, guests, nights, show
       )}
       {selectedRooms.map((r, i) => (
         <div key={r.id} className="flex justify-between">
-          <span className="text-[#9a9a9a] text-xs">{i === 0 ? "Room" : `Room ${i + 1}`}</span>
+          <span className="text-[#9a9a9a] text-xs">{i === 0 ? "Room" : "Room " + (i + 1)}</span>
           <span className="text-[#F8F5F0] text-xs font-medium">{r.name}</span>
         </div>
       ))}
@@ -305,7 +301,7 @@ function SummaryRows({ h, selectedRooms, checkIn, checkOut, guests, nights, show
           <>
             <div className="flex justify-between text-xs">
               <span className="text-[#9a9a9a]">
-                Platform fee {selectedRooms.length > 1 ? `(₹${h.platformFee} × ${selectedRooms.length} rooms)` : ""}
+                Platform fee {selectedRooms.length > 1 ? "(₹" + h.platformFee + " × " + selectedRooms.length + " rooms)" : ""}
               </span>
               <span className="text-[#F8F5F0]">₹{feeToShow}</span>
             </div>
@@ -337,7 +333,6 @@ function SummaryRows({ h, selectedRooms, checkIn, checkOut, guests, nights, show
   )
 }
 
-// ── POPUP A — Platform fee + Razorpay ─────────────────────────
 function BookingConfirmPopupFee({ h, selectedRooms, scaledFee, checkIn, checkOut, guests, nights, guestDetails, onClose, onPay }) {
   const [seconds, setSeconds] = useState(600)
   useEffect(() => {
@@ -360,13 +355,13 @@ function BookingConfirmPopupFee({ h, selectedRooms, scaledFee, checkIn, checkOut
         <div className="flex items-center justify-between mb-2">
           <h3 style={{ fontFamily: "'Playfair Display', serif" }}
             className="text-[#F8F5F0] text-lg font-bold">Booking Summary</h3>
-          <div className={`flex items-center gap-1.5 ${timerColor} bg-[#2a2a2a] border border-[#3a3a3a] px-3 py-1.5 rounded-full`}>
+          <div className={"flex items-center gap-1.5 " + timerColor + " bg-[#2a2a2a] border border-[#3a3a3a] px-3 py-1.5 rounded-full"}>
             <Timer size={13} />
             <span className="text-sm font-mono font-bold">{mins}:{secs}</span>
           </div>
         </div>
         <p className="text-[#9a9a9a] text-xs mb-4">
-          Summary expires in <span className={`font-semibold ${timerColor}`}>{mins}:{secs}</span>. Complete payment before the timer runs out.
+          Summary expires in <span className={"font-semibold " + timerColor}>{mins}:{secs}</span>. Complete payment before the timer runs out.
         </p>
         <SummaryRows h={h} selectedRooms={selectedRooms} scaledFee={scaledFee} checkIn={checkIn} checkOut={checkOut}
           guests={guests} nights={nights} showFee={true} guestDetails={guestDetails} />
@@ -386,14 +381,13 @@ function BookingConfirmPopupFee({ h, selectedRooms, scaledFee, checkIn, checkOut
         </button>
         <p className="text-center text-[#9a9a9a] text-xs mt-2">🔒 Secured by Razorpay</p>
         <p className="text-center text-[#8B6914] text-xs mt-1 italic">
-          ✦ Owner contact shared via SMS, Email & WhatsApp after confirmation
+          ✦ Owner contact shared via SMS, Email &amp; WhatsApp after confirmation
         </p>
       </div>
     </div>
   )
 }
 
-// ── POPUP B — Direct booking (within 72hrs) ───────────────────
 function BookingConfirmPopupDirect({ h, selectedRooms, checkIn, checkOut, guests, nights, guestDetails, onClose, onConfirm }) {
   const roomsSubtotal = selectedRooms.reduce((sum, r) => sum + (r.discountPrice ?? r.regularPrice) * nights, 0)
   return (
@@ -425,7 +419,7 @@ function BookingConfirmPopupDirect({ h, selectedRooms, checkIn, checkOut, guests
           </p>
         </div>
         <p className="text-[#9a9a9a] text-xs text-center mt-3 mb-3">
-          Booking confirmation and owner contact will be shared via SMS, Email & WhatsApp immediately.
+          Booking confirmation and owner contact will be shared via SMS, Email &amp; WhatsApp immediately.
         </p>
         <button onClick={onConfirm}
           className="w-full text-white py-4 rounded-2xl font-semibold text-sm transition shadow-lg flex items-center justify-center gap-2"
@@ -434,14 +428,13 @@ function BookingConfirmPopupDirect({ h, selectedRooms, checkIn, checkOut, guests
           Confirm Booking — No Payment Required
         </button>
         <p className="text-center text-[#8B6914] text-xs mt-2 italic">
-          ✦ Owner contact shared via SMS, Email & WhatsApp after confirmation
+          ✦ Owner contact shared via SMS, Email &amp; WhatsApp after confirmation
         </p>
       </div>
     </div>
   )
 }
 
-// ── Login prompt ──────────────────────────────────────────────
 function LoginPromptPopup({ onClose }) {
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center px-4"
@@ -480,7 +473,6 @@ function LoginPromptPopup({ onClose }) {
   )
 }
 
-// ── Main Page ─────────────────────────────────────────────────
 export default function HomestayPage({ onLogoClick }) {
   const { currentUser, openLogin } = useAuth()
   const loggedIn = !!currentUser
@@ -520,13 +512,9 @@ export default function HomestayPage({ onLogoClick }) {
   const [pendingBookingType, setPendingType] = useState(null)
   const [guestDetails, setGuestDetails]      = useState(null)
 
-  // ── Live availability ─────────────────────────────────────────
-  const [liveAvailability, setLiveAvailability]     = useState(new Map())
+  const [liveAvailability, setLiveAvailability]       = useState(new Map())
   const [availabilityLoading, setAvailabilityLoading] = useState(true)
 
-  // ── Re-fetch availability whenever homestay, checkIn, or checkOut changes ──
-  // This is the core fix: passing checkIn+checkOut to fetchRoomAvailability
-  // so Firestore range-overlap check runs with the user's actual chosen dates.
   useEffect(() => {
     if (!h) return
     const roomIds = h.rooms.map(r => r.id)
@@ -534,7 +522,6 @@ export default function HomestayPage({ onLogoClick }) {
     ;(async () => {
       try {
         await checkAndRestoreExpiredRooms(h.id, roomIds)
-        // Pass checkIn + checkOut so overlap check is date-aware
         const availability = await fetchRoomAvailability(h.id, roomIds, checkIn || undefined, checkOut || undefined)
         setLiveAvailability(availability)
       } catch (err) {
@@ -546,7 +533,7 @@ export default function HomestayPage({ onLogoClick }) {
         setAvailabilityLoading(false)
       }
     })()
-  }, [h?.id, checkIn, checkOut]) // ← re-runs when dates change
+  }, [h?.id, checkIn, checkOut])
 
   useEffect(() => {
     if (checkIn && checkOut) setHighlightDates(false)
@@ -556,18 +543,13 @@ export default function HomestayPage({ onLogoClick }) {
   const combinedMaxGuests  = selectedRooms.reduce((sum, r) => sum + r.maxGuests, 0)
   const atPropertyCap      = h ? selectedRooms.reduce((sum, r) => sum + r.maxGuests, 0) >= h.totalMaxGuests : false
 
-  // ── Unavailable rooms: booked for chosen dates OR alias conflict ──
-  // resolveRoomKey ensures "standard" and "premium-2bhk" share the same
-  // availability entry — selecting one won't falsely block the other.
   const unavailableRoomIds = new Set(
     h ? h.rooms
       .filter(r => {
         const key  = resolveRoomKey(r.id)
-        // Check canonical key first, then fall back to original id
         const live = liveAvailability.get(key) ?? liveAvailability.get(r.id)
         const isBooked = live ? live.booked : (r.booked ?? false)
         if (isBooked) return true
-        // Block alias twin if already selected (same physical room)
         return selectedRooms.some(sel =>
           sel.id !== r.id && resolveRoomKey(sel.id) === resolveRoomKey(r.id)
         )
@@ -584,16 +566,14 @@ export default function HomestayPage({ onLogoClick }) {
       if (live?.nextAvailable) {
         const d = new Date(live.nextAvailable)
         const label = d.toLocaleDateString("en-IN", { day: "2-digit", month: "short" })
-        return `Booked · Available from ${label}`
+        return "Booked · Available from " + label
       }
-      return checkIn && checkOut
-        ? "Unavailable for selected dates"
-        : "Currently booked"
+      return checkIn && checkOut ? "Unavailable for selected dates" : "Currently booked"
     }
     const aliasTwin = selectedRooms.find(
       sel => sel.id !== room.id && resolveRoomKey(sel.id) === resolveRoomKey(room.id)
     )
-    if (aliasTwin) return `Same room as ${aliasTwin.name}`
+    if (aliasTwin) return "Same room as " + aliasTwin.name
     return "Unavailable"
   }
 
@@ -623,7 +603,6 @@ export default function HomestayPage({ onLogoClick }) {
     setCheckIn(value)
     setHighlightDates(false)
     if (checkOut && checkOut < value) setCheckOut("")
-    // Deselect rooms that become unavailable after date change
     setSelectedRooms([])
   }
 
@@ -632,7 +611,6 @@ export default function HomestayPage({ onLogoClick }) {
     if (!checkIn && value <= getTodayDate()) return
     setCheckOut(value)
     setHighlightDates(false)
-    // Deselect rooms that become unavailable after date change
     setSelectedRooms([])
   }
 
@@ -690,7 +668,6 @@ export default function HomestayPage({ onLogoClick }) {
         totalAmount: subtotal,
         platformFee: scaledFee,
       })
-      // Immediately reflect in local state so UI updates without refetch
       setLiveAvailability(prev => {
         const next = new Map(prev)
         selectedRooms.forEach(r => {
@@ -712,7 +689,7 @@ export default function HomestayPage({ onLogoClick }) {
     setShowFeePopup(false)
     const bookingId = await finaliseBooking()
     if (bookingId) {
-      alert(`Booking confirmed! ID: ${bookingId}\n\nRazorpay integration coming in Phase 4.`)
+      alert("Booking confirmed! ID: " + bookingId + "\n\nRazorpay integration coming in Phase 4.")
     } else {
       alert("Booking saved locally but Firestore write failed. Check connection.")
     }
@@ -722,7 +699,7 @@ export default function HomestayPage({ onLogoClick }) {
     setShowDirectPopup(false)
     const bookingId = await finaliseBooking()
     if (bookingId) {
-      alert(`Booking confirmed! ID: ${bookingId}\nOwner details will be shared via SMS, Email & WhatsApp shortly.`)
+      alert("Booking confirmed! ID: " + bookingId + "\nOwner details will be shared via SMS, Email & WhatsApp shortly.")
     } else {
       alert("Booking saved but Firestore write failed. Check connection.")
     }
@@ -797,7 +774,7 @@ export default function HomestayPage({ onLogoClick }) {
           </button>
         </div>
 
-        {/* Gallery */}
+        {/* Gallery — thumbnail strip removed */}
         <div className="relative w-full h-72 md:h-96 rounded-3xl overflow-hidden shadow-2xl">
           <img src={h.images[imgIndex]} alt={h.name}
             className="w-full h-full object-cover transition-all duration-500" />
@@ -813,22 +790,12 @@ export default function HomestayPage({ onLogoClick }) {
           <div className="absolute bottom-3 left-1/2 -translate-x-1/2 flex gap-1.5">
             {h.images.map((_, i) => (
               <button key={i} onClick={() => setImgIndex(i)}
-                className={`h-2 rounded-full transition-all ${i === imgIndex ? "bg-white w-4" : "bg-white/40 w-2"}`} />
+                className={"h-2 rounded-full transition-all " + (i === imgIndex ? "bg-white w-4" : "bg-white/40 w-2")} />
             ))}
           </div>
           <div className="absolute top-3 right-3 bg-black/50 text-white text-xs px-2 py-1 rounded-full backdrop-blur-sm">
             {imgIndex + 1} / {h.images.length}
           </div>
-        </div>
-
-        {/* Thumbnails */}
-        <div className="flex gap-2 mt-3 overflow-x-auto pb-1">
-          {h.images.map((img, i) => (
-            <button key={i} onClick={() => setImgIndex(i)}
-              className={`flex-shrink-0 w-16 h-16 rounded-xl overflow-hidden border-2 transition ${i === imgIndex ? "border-[#8B6914]" : "border-transparent"}`}>
-              <img src={img} alt="" className="w-full h-full object-cover" />
-            </button>
-          ))}
         </div>
 
         {/* Name & Rating */}
@@ -847,7 +814,7 @@ export default function HomestayPage({ onLogoClick }) {
             </div>
             <button onClick={() => toggleWishlist(h)}
               style={{ transition: "transform 0.2s ease" }}
-              className={`flex items-center gap-2 text-sm mt-2 ${isWishlisted(h.id) ? "text-red-500" : "text-[#9a9a9a] hover:text-red-500"} transition`}>
+              className={"flex items-center gap-2 text-sm mt-2 " + (isWishlisted(h.id) ? "text-red-500" : "text-[#9a9a9a] hover:text-red-500") + " transition"}>
               <Heart size={16} fill={isWishlisted(h.id) ? "currentColor" : "none"} />
               {isWishlisted(h.id) ? "Wishlisted" : "Save to Wishlist"}
             </button>
@@ -924,21 +891,21 @@ export default function HomestayPage({ onLogoClick }) {
                 <div
                   key={room.id}
                   onClick={() => !isUnavailable && toggleRoom(room)}
-                  className={`w-full text-left rounded-2xl p-4 border-2 transition ${
+                  className={"w-full text-left rounded-2xl p-4 border-2 transition " + (
                     isUnavailable
                       ? "border-[#2a2a2a] bg-[#1e1e1e] cursor-not-allowed opacity-50"
                       : isSelected
                       ? "bg-[#2a2a2a] border-[#8B6914] cursor-pointer"
                       : "bg-[#2a2a2a] border-[#3a3a3a] hover:border-[#2D5A3D] cursor-pointer"
-                  }`}>
+                  )}>
                   <div className="flex items-center justify-between">
                     <div className="flex-1 min-w-0">
                       <div className="flex items-center gap-2 flex-wrap">
                         <p style={{ fontFamily: "'Playfair Display', serif" }}
-                          className={`font-semibold text-sm ${isUnavailable ? "text-[#5a5a5a]" : "text-[#F8F5F0]"}`}>
+                          className={"font-semibold text-sm " + (isUnavailable ? "text-[#5a5a5a]" : "text-[#F8F5F0]")}>
                           {room.name}
                         </p>
-                        <span className={`text-xs flex items-center gap-1 ${isUnavailable ? "text-[#4a4a4a]" : "text-[#9a9a9a]"}`}>
+                        <span className={"text-xs flex items-center gap-1 " + (isUnavailable ? "text-[#4a4a4a]" : "text-[#9a9a9a]")}>
                           <Users size={10} /> Max {room.maxGuests}
                         </span>
                         {isUnavailable && (
@@ -948,7 +915,7 @@ export default function HomestayPage({ onLogoClick }) {
                           </span>
                         )}
                       </div>
-                      <p className={`text-xs mt-0.5 ${isUnavailable ? "text-[#4a4a4a]" : "text-[#9a9a9a]"}`}>
+                      <p className={"text-xs mt-0.5 " + (isUnavailable ? "text-[#4a4a4a]" : "text-[#9a9a9a]")}>
                         {room.description}
                       </p>
                       {room.id === "premium-1bhk" && !isUnavailable && (
@@ -956,10 +923,10 @@ export default function HomestayPage({ onLogoClick }) {
                       )}
                     </div>
                     <div className="text-right flex-shrink-0 ml-3">
-                      <p className={`font-bold text-base ${isUnavailable ? "text-[#4a4a4a]" : "text-[#F8F5F0]"}`}>
+                      <p className={"font-bold text-base " + (isUnavailable ? "text-[#4a4a4a]" : "text-[#F8F5F0]")}>
                         ₹{room.discountPrice ?? room.regularPrice}
                       </p>
-                      <p className={`text-xs ${isUnavailable ? "text-[#4a4a4a]" : "text-[#9a9a9a]"}`}>/ night</p>
+                      <p className={"text-xs " + (isUnavailable ? "text-[#4a4a4a]" : "text-[#9a9a9a]")}>/ night</p>
                     </div>
                   </div>
                   {isSelected && !isUnavailable && (
@@ -976,7 +943,7 @@ export default function HomestayPage({ onLogoClick }) {
           </div>
         </div>
 
-        {/* ── BOOKING CARD ── */}
+        {/* BOOKING CARD */}
         {selectedRooms.length > 0 && (
           <div className="bg-[#2a2a2a] rounded-3xl border border-[#3a3a3a] p-5 shadow-xl mb-8">
 
@@ -984,7 +951,7 @@ export default function HomestayPage({ onLogoClick }) {
               <div className="flex items-center justify-between mb-2">
                 <p style={{ fontFamily: "'Playfair Display', serif" }}
                   className="text-[#F8F5F0] text-base font-semibold">
-                  {selectedRooms.length === 1 ? selectedRooms[0].name : `${selectedRooms.length} Rooms Selected`}
+                  {selectedRooms.length === 1 ? selectedRooms[0].name : selectedRooms.length + " Rooms Selected"}
                 </p>
                 <span className="text-[#8B6914] text-xs border border-[#8B6914]/40 px-2 py-0.5 rounded-full">
                   Max {combinedMaxGuests} guests
@@ -1087,11 +1054,11 @@ export default function HomestayPage({ onLogoClick }) {
                 <span className="text-[#F8F5F0] font-semibold w-6 text-center">{guests}</span>
                 <button onClick={() => setGuests(g => Math.min(combinedMaxGuests, g + 1))}
                   className="w-8 h-8 rounded-full bg-[#2a2a2a] border border-[#3a3a3a] text-[#F8F5F0] flex items-center justify-center hover:border-[#8B6914] transition text-lg">+</button>
-                <span className="text-[#9a9a9a] text-sm">{guests === 1 ? "1 guest" : `${guests} guests`}</span>
+                <span className="text-[#9a9a9a] text-sm">{guests === 1 ? "1 guest" : guests + " guests"}</span>
               </div>
               <p className="text-[#9a9a9a] text-xs mt-2 italic">
                 ✦ Max {combinedMaxGuests} guests across {selectedRooms.length} {selectedRooms.length === 1 ? "room" : "rooms"}
-                {checkIn && checkOut ? ` · ${nights} ${nights === 1 ? "night" : "nights"}` : ""}
+                {checkIn && checkOut ? " · " + nights + " " + (nights === 1 ? "night" : "nights") : ""}
               </p>
               {guests > combinedMaxGuests - 2 && guests === combinedMaxGuests && availableToAdd.length > 0 && !atPropertyCap && (
                 <p className="text-[#8B6914] text-xs mt-1 font-medium">
@@ -1127,7 +1094,7 @@ export default function HomestayPage({ onLogoClick }) {
                 <>
                   <div className="flex justify-between text-sm">
                     <span className="text-[#9a9a9a]">
-                      Platform fee{selectedRooms.length > 1 ? ` (₹${h.platformFee} × ${selectedRooms.length})` : ""}
+                      Platform fee{selectedRooms.length > 1 ? " (₹" + h.platformFee + " × " + selectedRooms.length + ")" : ""}
                     </span>
                     <span className="text-[#F8F5F0]">₹{scaledFee}</span>
                   </div>
@@ -1270,7 +1237,7 @@ export default function HomestayPage({ onLogoClick }) {
         {/* Rules */}
         <div className="mb-8">
           <h2 style={{ fontFamily: "'Playfair Display', serif" }}
-            className="text-[#F8F5F0] text-lg font-semibold mb-4">House Rules & Policies</h2>
+            className="text-[#F8F5F0] text-lg font-semibold mb-4">House Rules &amp; Policies</h2>
           <div className="bg-[#2a2a2a] border border-[#3a3a3a] rounded-2xl p-5 flex flex-col gap-3">
             {rules.map((rule, i) => (
               <div key={i} className="flex items-start gap-3 text-sm">
