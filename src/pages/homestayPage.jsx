@@ -28,7 +28,7 @@ const amenities = [
 ]
 
 const rules = [
-  "Check-in: 11:00 PM | Check-out: 11:00 AM",
+  "Check-in: 11:00 AM | Check-out: 11:00 AM",
   "No illegal activities; use of drugs, illegal substances, or any unlawful activity is strictly prohibited on the premises",
   "Guests must carry a valid government ID at check-in and should not be less than 21 years of age. Minors must be accompanied by a guardian at all times",
   "Parties or loud music after 10:00 PM - 07:00 AM is not permitted",
