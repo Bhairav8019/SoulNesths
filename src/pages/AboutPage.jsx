@@ -148,7 +148,7 @@ export default function AboutPage({ onLogoClick }) {
           }}>The Property</p>
 
           <p style={{ color: C.grey, fontSize: 13, lineHeight: 1.9, margin: "0 0 14px" }}>
-            Soul Nest Homestays is a boutique property nestled along Malow Ali Bye Pass, Jorhat — a city that
+            Soul Nest Homestay is a boutique property nestled along Malow Ali Bye Pass, Jorhat — a city that
             carries the quiet rhythm of Assam's tea heritage and warm northeastern culture. We offer four
             thoughtfully designed rooms — a cozy Standard, an elevated Deluxe, a private Premium 1BHK with a
             balcony view, and a spacious Premium 2BHK ideal for families and groups.
@@ -186,8 +186,7 @@ export default function AboutPage({ onLogoClick }) {
           </p>
 
           <p style={{ color: C.grey, fontSize: 13, lineHeight: 1.9, margin: 0 }}>
-            The platform is designed to be fast, transparent, and genuinely useful — built with React, powered
-            by Firebase, and deployed on Vercel. Our 24/7 voice assistant (tap the mic icon on the home screen)
+            The platform is designed to be fast, transparent, and genuinely useful. Our 24/7 voice assistant (tap the mic icon on the home screen)
             is always available to answer your questions about rooms, pricing, check-in, and experiences.
           </p>
         </div>
