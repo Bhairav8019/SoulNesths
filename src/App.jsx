@@ -10,6 +10,7 @@ import WishlistPage        from "./pages/WishlistPage"
 import MomentsPage         from "./pages/MomentsPage"
 import AdminPage           from "./pages/AdminPage"
 import BookingsPage        from "./pages/BookingsPage"
+import AboutPage           from "./pages/AboutPage"
 
 function AppInner() {
   const [loading, setLoading]   = useState(true)
@@ -37,6 +38,7 @@ function AppInner() {
         <Route path="/wishlist"     element={<WishlistPage onLogoClick={handleLogoClick} />} />
         <Route path="/moments"      element={<MomentsPage  onLogoClick={handleLogoClick} />} />
         <Route path="/bookings"     element={<BookingsPage onLogoClick={handleLogoClick} />} />
+        <Route path="/about"        element={<AboutPage    onLogoClick={handleLogoClick} />} />
         <Route path="/admin"        element={<AdminPage />} />
       </Routes>
     </>
