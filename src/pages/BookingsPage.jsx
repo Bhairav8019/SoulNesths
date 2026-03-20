@@ -8,7 +8,7 @@ import {
 import { db }                  from "../firebase"
 import { cancelBooking }       from "../data/roomAvailability"
 import {
-  ArrowLeft, Phone, CheckCircle2, Clock, AlertTriangle, X
+  ArrowLeft, Phone, CheckCircle2, AlertTriangle, X
 } from "lucide-react"
 import Navbar from "../components/Navbar"
 
@@ -64,8 +64,6 @@ function StatusBadge({ status, checkIn }) {
 }
 
 function CancelModal({ booking, onConfirm, onClose, cancelling }) {
-  const hrs        = hoursUntilCheckIn(booking.checkIn)
-  const eligible48 = hrs > 48
   return (
     <div style={{
       position: "fixed", inset: 0, zIndex: 100,
@@ -108,31 +106,18 @@ function CancelModal({ booking, onConfirm, onClose, cancelling }) {
             Rooms: <span style={{ color: C.white }}>{(booking.roomIds || []).join(", ")}</span>
           </p>
           <p style={{ color: C.grey, fontSize: 12, margin: 0 }}>
-            Platform fee paid: <span style={{ color: C.white }}>&#8377;{booking.platformFee}</span>
+            Total: <span style={{ color: C.white }}>&#8377;{booking.totalAmount?.toLocaleString() || "—"}</span>
           </p>
         </div>
 
-        {eligible48 ? (
-          <div style={{
-            background: C.green + "11", border: "1px solid " + C.green + "33",
-            borderRadius: 10, padding: "10px 14px", marginBottom: 16,
-          }}>
-            <p style={{ color: C.green, fontSize: 12, fontWeight: 600, margin: "0 0 2px" }}>&#10003; Eligible for full refund</p>
-            <p style={{ color: C.grey, fontSize: 12, margin: 0 }}>
-              Check-in is more than 48 hrs away. Platform fee of &#8377;{booking.platformFee} will be fully refunded.
-            </p>
-          </div>
-        ) : (
-          <div style={{
-            background: C.red + "11", border: "1px solid " + C.red + "33",
-            borderRadius: 10, padding: "10px 14px", marginBottom: 16,
-          }}>
-            <p style={{ color: C.red, fontSize: 12, fontWeight: 600, margin: "0 0 2px" }}>No refund applicable</p>
-            <p style={{ color: C.grey, fontSize: 12, margin: 0 }}>
-              Check-in is within 48 hours. Platform fee of &#8377;{booking.platformFee} is non-refundable at this stage.
-            </p>
-          </div>
-        )}
+        <div style={{
+          background: C.bamboo + "11", border: "1px solid " + C.bamboo + "33",
+          borderRadius: 10, padding: "10px 14px", marginBottom: 16,
+        }}>
+          <p style={{ color: C.bamboo, fontSize: 12, margin: 0 }}>
+            Since no advance payment was made, cancellation is free. The room will be released immediately.
+          </p>
+        </div>
 
         <div style={{ display: "flex", gap: 10 }}>
           <button onClick={onClose} disabled={cancelling} style={{
@@ -210,55 +195,15 @@ function BookingCard({ booking, onCancelClick }) {
         </div>
       </div>
 
+      {/* Pay at homestay reminder */}
       <div style={{
         background: C.card2, borderRadius: 10,
         padding: "8px 14px", marginBottom: 14,
         display: "flex", justifyContent: "space-between", alignItems: "center",
       }}>
-        <span style={{ color: C.grey, fontSize: 12 }}>Platform fee paid</span>
-        <span style={{ color: C.white, fontSize: 12, fontWeight: 600 }}>&#8377;{booking.platformFee || 0}</span>
+        <span style={{ color: C.grey, fontSize: 12 }}>Payment</span>
+        <span style={{ color: C.bamboo, fontSize: 12, fontWeight: 600 }}>Pay at homestay on arrival</span>
       </div>
-
-      {/* Case 1: refunded */}
-      {booking.status === "cancelled" && booking.refundStatus === "refunded" && (
-        <div style={{
-          background: C.green + "11", border: "1px solid " + C.green + "33",
-          borderRadius: 10, padding: "8px 14px", marginBottom: 14,
-          display: "flex", alignItems: "center", gap: 8,
-        }}>
-          <CheckCircle2 size={14} color={C.green} />
-          <span style={{ color: C.green, fontSize: 12, fontWeight: 600 }}>
-            Refund processed · &#8377;{booking.platformFee}
-          </span>
-        </div>
-      )}
-
-      {/* Case 2: pending */}
-      {booking.status === "cancelled" && booking.refundStatus === "pending" && (
-        <div style={{
-          background: C.bamboo + "11", border: "1px solid " + C.bamboo + "33",
-          borderRadius: 10, padding: "8px 14px", marginBottom: 14,
-          display: "flex", alignItems: "center", gap: 8,
-        }}>
-          <Clock size={14} color={C.bamboo} />
-          <span style={{ color: C.bamboo, fontSize: 12, fontWeight: 600 }}>
-            Refund pending — we'll process it within 3–5 business days
-          </span>
-        </div>
-      )}
-
-      {/* Case 3: not_eligible — render nothing */}
-
-      {booking.status === "confirmed" && hrs > 0 && hrs <= 48 && (
-        <div style={{
-          background: C.red + "0d", border: "1px solid " + C.red + "22",
-          borderRadius: 10, padding: "8px 14px", marginBottom: 14,
-        }}>
-          <p style={{ color: C.red, fontSize: 12, margin: 0 }}>
-            Check-in within 48 hrs — cancellation is no longer eligible for a refund
-          </p>
-        </div>
-      )}
 
       <div style={{ display: "flex", gap: 10 }}>
         {canCancel && (
@@ -268,7 +213,7 @@ function BookingCard({ booking, onCancelClick }) {
             padding: "10px 0", fontSize: 13, fontWeight: 600,
             cursor: "pointer", fontFamily: "inherit",
           }}>
-            {hrs <= 48 ? "Cancel (No Refund)" : "Cancel Booking"}
+            Cancel Booking
           </button>
         )}
         <a
@@ -318,13 +263,10 @@ export default function BookingsPage({ onLogoClick }) {
   const handleCancelConfirm = async () => {
     if (!cancelTarget) return
     setCancelling(true)
-    const eligible     = hoursUntilCheckIn(cancelTarget.checkIn) > 48
-    const refundStatus = eligible ? "pending" : "not_eligible"
     try {
       await updateDoc(doc(db, "bookings", cancelTarget.bookingId), {
         status:      "cancelled",
         cancelledAt: new Date().toISOString(),
-        refundStatus,
       })
       await cancelBooking(
         cancelTarget.bookingId,
@@ -333,7 +275,7 @@ export default function BookingsPage({ onLogoClick }) {
       )
       setBookings(prev =>
         prev.map(b => b.bookingId === cancelTarget.bookingId
-          ? { ...b, status: "cancelled", cancelledAt: new Date().toISOString(), refundStatus }
+          ? { ...b, status: "cancelled", cancelledAt: new Date().toISOString() }
           : b
         )
       )
@@ -534,7 +476,7 @@ export default function BookingsPage({ onLogoClick }) {
               </div>
             </div>
 
-            {/* WhatsApp Support — only visible alongside active bookings */}
+            {/* WhatsApp Support */}
             <div style={{
               marginTop: 28, background: C.card,
               border: "1px solid " + C.border, borderRadius: 16,

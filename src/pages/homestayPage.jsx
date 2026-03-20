@@ -1,11 +1,11 @@
-import { useState, useEffect, useRef } from "react"
+import { useState, useEffect } from "react"
 import { useParams, useNavigate, useLocation } from "react-router-dom"
 import { homestays } from "../data/homestays"
 import { useWishlist } from "../context/WishlistContext"
 import {
   ArrowLeft, ChevronLeft, ChevronRight, MapPin, Star,
   Users, Calendar, Wifi, Car, Tv, Droplets,
-  UtensilsCrossed, BedDouble, Wind, Heart, X, User, Timer, CheckCircle2, Phone
+  UtensilsCrossed, BedDouble, Wind, Heart, X, User, CheckCircle2, Phone
 } from "lucide-react"
 import Navbar from "../components/Navbar"
 import { useAuth } from "../context/AuthContext"
@@ -82,6 +82,7 @@ function validatePhone(raw) {
   return false
 }
 
+// ── Guest Details Popup ───────────────────────────────────────
 function GuestDetailsPopup({ onClose, onConfirm }) {
   const [name, setName]          = useState("")
   const [contact, setContact]    = useState("")
@@ -236,87 +237,80 @@ function GuestDetailsPopup({ onClose, onConfirm }) {
   )
 }
 
-function SummaryRows({ h, selectedRooms, checkIn, checkOut, guests, nights, showFee, scaledFee, guestDetails }) {
-  const roomsSubtotal = selectedRooms.reduce((sum, r) => {
-    const p = r.discountPrice ?? r.regularPrice
-    return sum + p * nights
-  }, 0)
-  const feeToShow = scaledFee ?? h.platformFee
+// ── Booking Confirm Popup — unified pay at homestay ───────────
+function BookingConfirmPopup({ h, selectedRooms, checkIn, checkOut, guests, nights, guestDetails, onClose, onConfirm }) {
+  const roomsSubtotal = selectedRooms.reduce((sum, r) => sum + (r.discountPrice ?? r.regularPrice) * nights, 0)
   return (
-    <div className="bg-[#2a2a2a] border border-[#3a3a3a] rounded-2xl p-4 flex flex-col gap-2.5">
-      <div className="flex justify-between items-start">
-        <span className="text-[#9a9a9a] text-xs">Homestay</span>
-        <span style={{ fontFamily: "'Playfair Display', serif" }}
-          className="text-[#F8F5F0] text-xs font-semibold text-right max-w-[55%]">{h.name}</span>
-      </div>
-      {guestDetails?.name && (
-        <div className="flex justify-between">
-          <span className="text-[#9a9a9a] text-xs">Guest</span>
-          <span className="text-[#F8F5F0] text-xs font-medium">{guestDetails.name}</span>
+    <div className="fixed inset-0 z-50 flex items-end md:items-center justify-center px-4 pb-4 md:pb-0"
+      style={{ background: "rgba(0,0,0,0.75)", backdropFilter: "blur(6px)" }}>
+      <div className="bg-[#1C1C1C] border border-[#3a3a3a] rounded-3xl p-5 max-w-sm w-full shadow-2xl relative">
+        <button onClick={onClose} className="absolute top-4 right-4 text-[#9a9a9a] hover:text-white transition">
+          <X size={18} />
+        </button>
+
+        <div className="flex items-center gap-2 mb-4">
+          <h3 style={{ fontFamily: "'Playfair Display', serif" }}
+            className="text-[#F8F5F0] text-lg font-bold">Booking Summary</h3>
+          <span className="text-xs bg-[#2D5A3D]/20 text-[#2D5A3D] border border-[#2D5A3D]/40 px-2 py-0.5 rounded-full whitespace-nowrap">
+            No Payment Now
+          </span>
         </div>
-      )}
-      {guestDetails?.contact && (
-        <div className="flex justify-between">
-          <span className="text-[#9a9a9a] text-xs">Contact</span>
-          <span className="text-[#F8F5F0] text-xs">{guestDetails.contact}</span>
-        </div>
-      )}
-      {selectedRooms.map((r, i) => (
-        <div key={r.id} className="flex justify-between">
-          <span className="text-[#9a9a9a] text-xs">{i === 0 ? "Room" : "Room " + (i + 1)}</span>
-          <span className="text-[#F8F5F0] text-xs font-medium">{r.name}</span>
-        </div>
-      ))}
-      <div className="flex justify-between">
-        <span className="text-[#9a9a9a] text-xs">Check-in</span>
-        <span className="text-[#F8F5F0] text-xs">
-          {new Date(checkIn).toLocaleDateString("en-IN", { day: "2-digit", month: "short", year: "numeric" })}
-        </span>
-      </div>
-      <div className="flex justify-between">
-        <span className="text-[#9a9a9a] text-xs">Check-out</span>
-        <span className="text-[#F8F5F0] text-xs">
-          {new Date(checkOut).toLocaleDateString("en-IN", { day: "2-digit", month: "short", year: "numeric" })}
-        </span>
-      </div>
-      <div className="flex justify-between">
-        <span className="text-[#9a9a9a] text-xs">Guests</span>
-        <span className="text-[#F8F5F0] text-xs">{guests} {guests === 1 ? "Guest" : "Guests"}</span>
-      </div>
-      <div className="flex justify-between">
-        <span className="text-[#9a9a9a] text-xs">Duration</span>
-        <span className="text-[#F8F5F0] text-xs">{nights} {nights === 1 ? "Night" : "Nights"}</span>
-      </div>
-      <div className="border-t border-[#3a3a3a] pt-2 mt-1 flex flex-col gap-1.5">
-        {selectedRooms.map(r => {
-          const p = r.discountPrice ?? r.regularPrice
-          return (
-            <div key={r.id} className="flex justify-between text-xs">
-              <span className="text-[#9a9a9a]">{r.name} · ₹{p} × {nights}n</span>
-              <span className="text-[#F8F5F0]">₹{p * nights}</span>
+
+        {/* Summary rows */}
+        <div className="bg-[#2a2a2a] border border-[#3a3a3a] rounded-2xl p-4 flex flex-col gap-2.5 mb-4">
+          <div className="flex justify-between items-start">
+            <span className="text-[#9a9a9a] text-xs">Homestay</span>
+            <span style={{ fontFamily: "'Playfair Display', serif" }}
+              className="text-[#F8F5F0] text-xs font-semibold text-right max-w-[55%]">{h.name}</span>
+          </div>
+          {guestDetails?.name && (
+            <div className="flex justify-between">
+              <span className="text-[#9a9a9a] text-xs">Guest</span>
+              <span className="text-[#F8F5F0] text-xs font-medium">{guestDetails.name}</span>
             </div>
-          )
-        })}
-        {showFee ? (
-          <>
-            <div className="flex justify-between text-xs">
-              <span className="text-[#9a9a9a]">
-                Platform fee {selectedRooms.length > 1 ? "(₹" + h.platformFee + " × " + selectedRooms.length + " rooms)" : ""}
-              </span>
-              <span className="text-[#F8F5F0]">₹{feeToShow}</span>
+          )}
+          {guestDetails?.contact && (
+            <div className="flex justify-between">
+              <span className="text-[#9a9a9a] text-xs">Contact</span>
+              <span className="text-[#F8F5F0] text-xs">{guestDetails.contact}</span>
             </div>
-            <div className="flex justify-between text-xs italic">
-              <span className="text-[#9a9a9a]">Pay at homestay</span>
-              <span className="text-[#9a9a9a]">₹{Math.max(0, roomsSubtotal - feeToShow)}</span>
+          )}
+          {selectedRooms.map((r, i) => (
+            <div key={r.id} className="flex justify-between">
+              <span className="text-[#9a9a9a] text-xs">{i === 0 ? "Room" : "Room " + (i + 1)}</span>
+              <span className="text-[#F8F5F0] text-xs font-medium">{r.name}</span>
             </div>
-            <div className="border-t border-[#8B6914]/30 pt-2 flex justify-between items-center">
-              <span className="text-[#F8F5F0] text-sm font-semibold">Pay Now</span>
-              <span style={{ fontFamily: "'Playfair Display', serif" }}
-                className="text-[#8B6914] text-xl font-bold">₹{feeToShow}</span>
-            </div>
-          </>
-        ) : (
-          <>
+          ))}
+          <div className="flex justify-between">
+            <span className="text-[#9a9a9a] text-xs">Check-in</span>
+            <span className="text-[#F8F5F0] text-xs">
+              {new Date(checkIn).toLocaleDateString("en-IN", { day: "2-digit", month: "short", year: "numeric" })}
+            </span>
+          </div>
+          <div className="flex justify-between">
+            <span className="text-[#9a9a9a] text-xs">Check-out</span>
+            <span className="text-[#F8F5F0] text-xs">
+              {new Date(checkOut).toLocaleDateString("en-IN", { day: "2-digit", month: "short", year: "numeric" })}
+            </span>
+          </div>
+          <div className="flex justify-between">
+            <span className="text-[#9a9a9a] text-xs">Guests</span>
+            <span className="text-[#F8F5F0] text-xs">{guests} {guests === 1 ? "Guest" : "Guests"}</span>
+          </div>
+          <div className="flex justify-between">
+            <span className="text-[#9a9a9a] text-xs">Duration</span>
+            <span className="text-[#F8F5F0] text-xs">{nights} {nights === 1 ? "Night" : "Nights"}</span>
+          </div>
+          <div className="border-t border-[#3a3a3a] pt-2 mt-1 flex flex-col gap-1.5">
+            {selectedRooms.map(r => {
+              const p = r.discountPrice ?? r.regularPrice
+              return (
+                <div key={r.id} className="flex justify-between text-xs">
+                  <span className="text-[#9a9a9a]">{r.name} · ₹{p} × {nights}n</span>
+                  <span className="text-[#F8F5F0]">₹{p * nights}</span>
+                </div>
+              )
+            })}
             <div className="flex justify-between text-xs italic">
               <span className="text-[#9a9a9a]">Pay at homestay on arrival</span>
               <span className="text-[#9a9a9a]">₹{roomsSubtotal}</span>
@@ -326,101 +320,16 @@ function SummaryRows({ h, selectedRooms, checkIn, checkOut, guests, nights, show
               <span style={{ fontFamily: "'Playfair Display', serif" }}
                 className="text-[#2D5A3D] text-xl font-bold">₹0</span>
             </div>
-          </>
-        )}
-      </div>
-    </div>
-  )
-}
-
-function BookingConfirmPopupFee({ h, selectedRooms, scaledFee, checkIn, checkOut, guests, nights, guestDetails, onClose, onPay }) {
-  const [seconds, setSeconds] = useState(600)
-  useEffect(() => {
-    const t = setInterval(() => {
-      setSeconds(s => { if (s <= 1) { clearInterval(t); onClose(); return 0 } return s - 1 })
-    }, 1000)
-    return () => clearInterval(t)
-  }, [])
-  const mins = String(Math.floor(seconds / 60)).padStart(2, "0")
-  const secs = String(seconds % 60).padStart(2, "0")
-  const timerColor = seconds < 120 ? "text-red-400" : "text-[#8B6914]"
-
-  return (
-    <div className="fixed inset-0 z-50 flex items-end md:items-center justify-center px-4 pb-4 md:pb-0"
-      style={{ background: "rgba(0,0,0,0.75)", backdropFilter: "blur(6px)" }}>
-      <div className="bg-[#1C1C1C] border border-[#3a3a3a] rounded-3xl p-5 max-w-sm w-full shadow-2xl relative">
-        <button onClick={onClose} className="absolute top-4 right-4 text-[#9a9a9a] hover:text-white transition">
-          <X size={18} />
-        </button>
-        <div className="flex items-center justify-between mb-2">
-          <h3 style={{ fontFamily: "'Playfair Display', serif" }}
-            className="text-[#F8F5F0] text-lg font-bold">Booking Summary</h3>
-          <div className={"flex items-center gap-1.5 " + timerColor + " bg-[#2a2a2a] border border-[#3a3a3a] px-3 py-1.5 rounded-full"}>
-            <Timer size={13} />
-            <span className="text-sm font-mono font-bold">{mins}:{secs}</span>
           </div>
         </div>
-        <p className="text-[#9a9a9a] text-xs mb-4">
-          Summary expires in <span className={"font-semibold " + timerColor}>{mins}:{secs}</span>. Complete payment before the timer runs out.
-        </p>
-        <SummaryRows h={h} selectedRooms={selectedRooms} scaledFee={scaledFee} checkIn={checkIn} checkOut={checkOut}
-          guests={guests} nights={nights} showFee={true} guestDetails={guestDetails} />
-        <div className="mt-3 bg-[#2D5A3D]/10 border border-[#2D5A3D]/30 rounded-xl px-3 py-2.5">
-          <p className="text-[#2D5A3D] text-xs font-medium">🛡️ Full refund policy</p>
-          <p className="text-[#9a9a9a] text-xs mt-0.5">
-            Platform fee fully refunded if cancelled before 48 hrs of check-in (00:00). No questions asked.
-          </p>
-        </div>
-        <p className="text-[#9a9a9a] text-xs text-center mt-3 mb-3">
-          You will be redirected to Razorpay to complete your booking securely.
-        </p>
-        <button onClick={onPay}
-          className="w-full bg-[#2D5A3D] text-white py-4 rounded-2xl font-semibold text-sm hover:bg-[#8B6914] transition shadow-lg"
-          style={{ fontFamily: "'Playfair Display', serif" }}>
-          Proceed to Payment — ₹{scaledFee}
-        </button>
-        <p className="text-center text-[#9a9a9a] text-xs mt-2">🔒 Secured by Razorpay</p>
-        <p className="text-center text-[#8B6914] text-xs mt-1 italic">
-          ✦ Owner contact shared via SMS, Email &amp; WhatsApp after confirmation
-        </p>
-      </div>
-    </div>
-  )
-}
 
-function BookingConfirmPopupDirect({ h, selectedRooms, checkIn, checkOut, guests, nights, guestDetails, onClose, onConfirm }) {
-  const roomsSubtotal = selectedRooms.reduce((sum, r) => sum + (r.discountPrice ?? r.regularPrice) * nights, 0)
-  return (
-    <div className="fixed inset-0 z-50 flex items-end md:items-center justify-center px-4 pb-4 md:pb-0"
-      style={{ background: "rgba(0,0,0,0.75)", backdropFilter: "blur(6px)" }}>
-      <div className="bg-[#1C1C1C] border border-[#3a3a3a] rounded-3xl p-5 max-w-sm w-full shadow-2xl relative">
-        <button onClick={onClose} className="absolute top-4 right-4 text-[#9a9a9a] hover:text-white transition">
-          <X size={18} />
-        </button>
-        <div className="flex items-center gap-2 mb-1">
-          <h3 style={{ fontFamily: "'Playfair Display', serif" }}
-            className="text-[#F8F5F0] text-lg font-bold">Booking Summary</h3>
-          <span className="text-xs bg-[#2D5A3D]/20 text-[#2D5A3D] border border-[#2D5A3D]/40 px-2 py-0.5 rounded-full whitespace-nowrap">
-            No Payment Now
-          </span>
-        </div>
-        <div className="bg-[#1a2a1a] border border-[#2D5A3D]/40 rounded-xl px-3 py-2.5 mb-4">
-          <p className="text-[#2D5A3D] text-xs font-semibold">⚡ Last-minute booking</p>
-          <p className="text-[#9a9a9a] text-xs mt-0.5">
-            Your check-in is within 72 hours — no platform fee is charged. Full amount paid directly at the homestay on arrival.
-          </p>
-        </div>
-        <SummaryRows h={h} selectedRooms={selectedRooms} checkIn={checkIn} checkOut={checkOut}
-          guests={guests} nights={nights} showFee={false} guestDetails={guestDetails} />
-        <div className="mt-3 bg-[#8B6914]/10 border border-[#8B6914]/30 rounded-xl px-3 py-2.5">
+        <div className="bg-[#8B6914]/10 border border-[#8B6914]/30 rounded-xl px-3 py-2.5 mb-4">
           <p className="text-[#8B6914] text-xs font-medium">💰 Pay at homestay on arrival</p>
           <p className="text-[#9a9a9a] text-xs mt-0.5">
             Full amount of ₹{roomsSubtotal} to be paid in cash or UPI directly to the homestay on check-in.
           </p>
         </div>
-        <p className="text-[#9a9a9a] text-xs text-center mt-3 mb-3">
-          Booking confirmation and owner contact will be shared via SMS, Email &amp; WhatsApp immediately.
-        </p>
+
         <button onClick={onConfirm}
           className="w-full text-white py-4 rounded-2xl font-semibold text-sm transition shadow-lg flex items-center justify-center gap-2"
           style={{ fontFamily: "'Playfair Display', serif", background: "linear-gradient(135deg, #2D5A3D, #3a7a52)" }}>
@@ -428,13 +337,14 @@ function BookingConfirmPopupDirect({ h, selectedRooms, checkIn, checkOut, guests
           Confirm Booking — No Payment Required
         </button>
         <p className="text-center text-[#8B6914] text-xs mt-2 italic">
-          ✦ Owner contact shared via SMS, Email &amp; WhatsApp after confirmation
+          ✦ Booking ID and owner contact shared immediately after confirmation
         </p>
       </div>
     </div>
   )
 }
 
+// ── Login prompt ──────────────────────────────────────────────
 function LoginPromptPopup({ onClose }) {
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center px-4"
@@ -473,6 +383,7 @@ function LoginPromptPopup({ onClose }) {
   )
 }
 
+// ── Main Page ─────────────────────────────────────────────────
 export default function HomestayPage({ onLogoClick }) {
   const { currentUser, openLogin } = useAuth()
   const loggedIn = !!currentUser
@@ -500,16 +411,13 @@ export default function HomestayPage({ onLogoClick }) {
   const hasSearchData = !!(checkIn || checkOut || (guests && guests > 1))
   const [selectedRooms, setSelectedRooms]     = useState([])
   const [showLoginPrompt, setShowLoginPrompt] = useState(false)
-  const [showFeePopup, setShowFeePopup]       = useState(false)
-  const [showDirectPopup, setShowDirectPopup] = useState(false)
+  const [showConfirmPopup, setShowConfirmPopup] = useState(false)
   const [showNestEscapes, setShowNestEscapes] = useState(false)
   const [selectedEscape, setSelectedEscape]   = useState(null)
   const { toggleWishlist, isWishlisted } = useWishlist()
 
   const [highlightDates, setHighlightDates] = useState(false)
-
   const [showGuestPopup, setShowGuestPopup]  = useState(false)
-  const [pendingBookingType, setPendingType] = useState(null)
   const [guestDetails, setGuestDetails]      = useState(null)
 
   const [liveAvailability, setLiveAvailability]       = useState(new Map())
@@ -539,9 +447,8 @@ export default function HomestayPage({ onLogoClick }) {
     if (checkIn && checkOut) setHighlightDates(false)
   }, [checkIn, checkOut])
 
-  const primaryRoom        = selectedRooms[0] || null
-  const combinedMaxGuests  = selectedRooms.reduce((sum, r) => sum + r.maxGuests, 0)
-  const atPropertyCap      = h ? selectedRooms.reduce((sum, r) => sum + r.maxGuests, 0) >= h.totalMaxGuests : false
+  const combinedMaxGuests = selectedRooms.reduce((sum, r) => sum + r.maxGuests, 0)
+  const atPropertyCap     = h ? selectedRooms.reduce((sum, r) => sum + r.maxGuests, 0) >= h.totalMaxGuests : false
 
   const unavailableRoomIds = new Set(
     h ? h.rooms
@@ -631,12 +538,6 @@ export default function HomestayPage({ onLogoClick }) {
     return sum + (r.discountPrice ?? r.regularPrice) * nights
   }, 0)
 
-  const scaledFee = h.platformFee * selectedRooms.length
-
-  const hrs         = hoursUntilCheckIn(checkIn)
-  const isWithin72  = checkIn && hrs <= 72
-  const isDirectMode = isWithin72 && selectedRooms.length === 1
-
   const handleReserve = () => {
     if (!loggedIn) { setShowLoginPrompt(true); return }
     if (!checkIn || !checkOut) {
@@ -644,19 +545,17 @@ export default function HomestayPage({ onLogoClick }) {
       document.getElementById("booking-dates")?.scrollIntoView({ behavior: "smooth", block: "center" })
       return
     }
-    setPendingType(isDirectMode ? "direct" : "fee")
     setShowGuestPopup(true)
   }
 
   const handleGuestConfirmed = (details) => {
     setGuestDetails(details)
     setShowGuestPopup(false)
-    if (pendingBookingType === "direct") setShowDirectPopup(true)
-    else setShowFeePopup(true)
+    setShowConfirmPopup(true)
   }
 
   const finaliseBooking = async () => {
-    if (!checkIn || !checkOut) return
+    if (!checkIn || !checkOut) return null
     try {
       const bookingId = await confirmBookingInFirestore({
         homestayId:  h.id,
@@ -666,7 +565,10 @@ export default function HomestayPage({ onLogoClick }) {
         guests,
         nights,
         totalAmount: subtotal,
-        platformFee: scaledFee,
+        platformFee: 0,
+        guestName:    guestDetails?.name || "",
+        guestContact: guestDetails?.contact || "",
+        guestWhatsapp: guestDetails?.whatsapp || "",
       })
       setLiveAvailability(prev => {
         const next = new Map(prev)
@@ -685,23 +587,13 @@ export default function HomestayPage({ onLogoClick }) {
     }
   }
 
-  const handlePay = async () => {
-    setShowFeePopup(false)
+  const handleConfirm = async () => {
+    setShowConfirmPopup(false)
     const bookingId = await finaliseBooking()
     if (bookingId) {
-      alert("Booking confirmed! ID: " + bookingId + "\n\nRazorpay integration coming in Phase 4.")
+      alert("Booking confirmed!\n\nBooking ID: " + bookingId + "\n\nPlease show this ID at check-in. Full amount to be paid at the homestay on arrival.")
     } else {
-      alert("Booking saved locally but Firestore write failed. Check connection.")
-    }
-  }
-
-  const handleDirectConfirm = async () => {
-    setShowDirectPopup(false)
-    const bookingId = await finaliseBooking()
-    if (bookingId) {
-      alert("Booking confirmed! ID: " + bookingId + "\nOwner details will be shared via SMS, Email & WhatsApp shortly.")
-    } else {
-      alert("Booking saved but Firestore write failed. Check connection.")
+      alert("Booking failed. Please check your connection and try again.")
     }
   }
 
@@ -718,22 +610,20 @@ export default function HomestayPage({ onLogoClick }) {
 
       {showGuestPopup && (
         <GuestDetailsPopup
-          onClose={() => { setShowGuestPopup(false); setPendingType(null) }}
+          onClose={() => setShowGuestPopup(false)}
           onConfirm={handleGuestConfirmed}
         />
       )}
       {showLoginPrompt && <LoginPromptPopup onClose={() => { setShowLoginPrompt(false); openLogin() }} />}
-      {showFeePopup && selectedRooms.length > 0 && (
-        <BookingConfirmPopupFee h={h} selectedRooms={selectedRooms} scaledFee={scaledFee}
-          checkIn={checkIn} checkOut={checkOut} guests={guests} nights={nights}
+      {showConfirmPopup && selectedRooms.length > 0 && (
+        <BookingConfirmPopup
+          h={h} selectedRooms={selectedRooms}
+          checkIn={checkIn} checkOut={checkOut}
+          guests={guests} nights={nights}
           guestDetails={guestDetails}
-          onClose={() => setShowFeePopup(false)} onPay={handlePay} />
-      )}
-      {showDirectPopup && selectedRooms.length > 0 && (
-        <BookingConfirmPopupDirect h={h} selectedRooms={selectedRooms}
-          checkIn={checkIn} checkOut={checkOut} guests={guests} nights={nights}
-          guestDetails={guestDetails}
-          onClose={() => setShowDirectPopup(false)} onConfirm={handleDirectConfirm} />
+          onClose={() => setShowConfirmPopup(false)}
+          onConfirm={handleConfirm}
+        />
       )}
       {showNestEscapes && selectedEscape && (
         <div className="fixed inset-0 z-50 flex items-center justify-center px-4"
@@ -774,7 +664,7 @@ export default function HomestayPage({ onLogoClick }) {
           </button>
         </div>
 
-        {/* Gallery — thumbnail strip removed */}
+        {/* Gallery */}
         <div className="relative w-full h-72 md:h-96 rounded-3xl overflow-hidden shadow-2xl">
           <img src={h.images[imgIndex]} alt={h.name}
             className="w-full h-full object-cover transition-all duration-500" />
@@ -888,9 +778,7 @@ export default function HomestayPage({ onLogoClick }) {
               const reason        = isUnavailable ? unavailableReason(room) : null
 
               return (
-                <div
-                  key={room.id}
-                  onClick={() => !isUnavailable && toggleRoom(room)}
+                <div key={room.id} onClick={() => !isUnavailable && toggleRoom(room)}
                   className={"w-full text-left rounded-2xl p-4 border-2 transition " + (
                     isUnavailable
                       ? "border-[#2a2a2a] bg-[#1e1e1e] cursor-not-allowed opacity-50"
@@ -1060,7 +948,7 @@ export default function HomestayPage({ onLogoClick }) {
                 ✦ Max {combinedMaxGuests} guests across {selectedRooms.length} {selectedRooms.length === 1 ? "room" : "rooms"}
                 {checkIn && checkOut ? " · " + nights + " " + (nights === 1 ? "night" : "nights") : ""}
               </p>
-              {guests > combinedMaxGuests - 2 && guests === combinedMaxGuests && availableToAdd.length > 0 && !atPropertyCap && (
+              {guests === combinedMaxGuests && availableToAdd.length > 0 && !atPropertyCap && (
                 <p className="text-[#8B6914] text-xs mt-1 font-medium">
                   ⚠ At room capacity — add another room above for more guests
                 </p>
@@ -1078,87 +966,33 @@ export default function HomestayPage({ onLogoClick }) {
                   </div>
                 )
               })}
-              {isDirectMode ? (
-                <>
-                  <div className="flex justify-between text-sm text-[#9a9a9a] italic">
-                    <span>Pay at homestay on arrival</span>
-                    <span>₹{subtotal}</span>
-                  </div>
-                  <div className="border-t border-[#2D5A3D]/30 pt-2 flex justify-between font-semibold">
-                    <span className="text-[#F8F5F0]">Pay now</span>
-                    <span style={{ fontFamily: "'Playfair Display', serif" }}
-                      className="text-[#2D5A3D] text-lg">₹0</span>
-                  </div>
-                </>
-              ) : (
-                <>
-                  <div className="flex justify-between text-sm">
-                    <span className="text-[#9a9a9a]">
-                      Platform fee{selectedRooms.length > 1 ? " (₹" + h.platformFee + " × " + selectedRooms.length + ")" : ""}
-                    </span>
-                    <span className="text-[#F8F5F0]">₹{scaledFee}</span>
-                  </div>
-                  <div className="flex justify-between text-sm text-[#9a9a9a] italic">
-                    <span>Remaining (pay at homestay)</span>
-                    <span>₹{Math.max(0, subtotal - scaledFee)}</span>
-                  </div>
-                  <div className="border-t border-[#3a3a3a] pt-2 flex justify-between font-semibold">
-                    <span className="text-[#F8F5F0]">Pay now</span>
-                    <span style={{ fontFamily: "'Playfair Display', serif" }}
-                      className="text-[#8B6914] text-lg">₹{scaledFee}</span>
-                  </div>
-                </>
-              )}
+              <div className="flex justify-between text-sm text-[#9a9a9a] italic">
+                <span>Pay at homestay on arrival</span>
+                <span>₹{subtotal}</span>
+              </div>
+              <div className="border-t border-[#2D5A3D]/30 pt-2 flex justify-between font-semibold">
+                <span className="text-[#F8F5F0]">Pay now</span>
+                <span style={{ fontFamily: "'Playfair Display', serif" }}
+                  className="text-[#2D5A3D] text-lg">₹0</span>
+              </div>
             </div>
 
-            {/* Buttons */}
-            {isDirectMode ? (
-              <>
-                <div className="bg-[#1a2a1a] border border-[#2D5A3D]/40 rounded-xl px-3 py-2 mb-3">
-                  <p className="text-[#2D5A3D] text-xs font-semibold">⚡ Last-minute booking</p>
-                  <p className="text-[#9a9a9a] text-xs mt-0.5">
-                    Check-in within 72 hours — no platform fee. Pay full amount at homestay on arrival.
-                  </p>
-                </div>
-                <button onClick={handleReserve}
-                  className="w-full text-white py-4 rounded-2xl font-semibold text-base transition shadow-lg flex items-center justify-center gap-2"
-                  style={{ fontFamily: "'Playfair Display', serif", background: "linear-gradient(135deg, #2D5A3D, #3a7a52)" }}>
-                  <CheckCircle2 size={18} />
-                  Book Now — No Payment Required
-                </button>
-                <p className="text-center text-[#9a9a9a] text-xs mt-3">
-                  Full amount ₹{subtotal} paid directly at homestay on check-in
-                </p>
-              </>
-            ) : isWithin72 && selectedRooms.length > 1 ? (
-              <>
-                <div className="bg-[#2a1a0a] border border-[#8B6914]/40 rounded-xl px-3 py-2 mb-3">
-                  <p className="text-[#8B6914] text-xs font-semibold">⚡ Last-minute · Multi-room booking</p>
-                  <p className="text-[#9a9a9a] text-xs mt-0.5">
-                    72hr waiver applies to single rooms only. Booking {selectedRooms.length} rooms requires a platform fee of ₹{scaledFee} (₹{h.platformFee} × {selectedRooms.length} rooms).
-                  </p>
-                </div>
-                <button onClick={handleReserve}
-                  className="w-full bg-[#8B6914] text-white py-4 rounded-2xl font-semibold text-base hover:bg-[#a07820] transition shadow-lg"
-                  style={{ fontFamily: "'Playfair Display', serif" }}>
-                  Reserve Now — Pay ₹{scaledFee} to Confirm
-                </button>
-                <p className="text-center text-[#9a9a9a] text-xs mt-3">
-                  Full refund if cancelled 48 hrs before check-in · Remaining amount paid at homestay
-                </p>
-              </>
-            ) : (
-              <>
-                <button onClick={handleReserve}
-                  className="w-full bg-[#2D5A3D] text-white py-4 rounded-2xl font-semibold text-base hover:bg-[#8B6914] transition shadow-lg"
-                  style={{ fontFamily: "'Playfair Display', serif" }}>
-                  Reserve Now — Pay ₹{scaledFee} to Confirm
-                </button>
-                <p className="text-center text-[#9a9a9a] text-xs mt-3">
-                  Full refund if cancelled 48 hrs before check-in · Remaining amount paid at homestay
-                </p>
-              </>
-            )}
+            {/* Book Now button — unified, no payment */}
+            <div className="bg-[#1a2a1a] border border-[#2D5A3D]/40 rounded-xl px-3 py-2 mb-3">
+              <p className="text-[#2D5A3D] text-xs font-semibold">💰 Pay at homestay on arrival</p>
+              <p className="text-[#9a9a9a] text-xs mt-0.5">
+                Full amount of ₹{subtotal} to be paid in cash or UPI directly to the homestay on check-in.
+              </p>
+            </div>
+            <button onClick={handleReserve}
+              className="w-full text-white py-4 rounded-2xl font-semibold text-base transition shadow-lg flex items-center justify-center gap-2"
+              style={{ fontFamily: "'Playfair Display', serif", background: "linear-gradient(135deg, #2D5A3D, #3a7a52)" }}>
+              <CheckCircle2 size={18} />
+              Book Now — No Payment Required
+            </button>
+            <p className="text-center text-[#9a9a9a] text-xs mt-3">
+              Full amount ₹{subtotal} paid directly at homestay on check-in
+            </p>
           </div>
         )}
 
