@@ -256,7 +256,6 @@ function BookingConfirmPopup({ h, selectedRooms, checkIn, checkOut, guests, nigh
           </span>
         </div>
 
-        {/* Summary rows */}
         <div className="bg-[#2a2a2a] border border-[#3a3a3a] rounded-2xl p-4 flex flex-col gap-2.5 mb-4">
           <div className="flex justify-between items-start">
             <span className="text-[#9a9a9a] text-xs">Homestay</span>
@@ -409,11 +408,11 @@ export default function HomestayPage({ onLogoClick }) {
   const [guests, setGuests]     = useState(searchData.guests ? parseInt(searchData.guests) : 1)
 
   const hasSearchData = !!(checkIn || checkOut || (guests && guests > 1))
-  const [selectedRooms, setSelectedRooms]     = useState([])
-  const [showLoginPrompt, setShowLoginPrompt] = useState(false)
+  const [selectedRooms, setSelectedRooms]       = useState([])
+  const [showLoginPrompt, setShowLoginPrompt]   = useState(false)
   const [showConfirmPopup, setShowConfirmPopup] = useState(false)
-  const [showNestEscapes, setShowNestEscapes] = useState(false)
-  const [selectedEscape, setSelectedEscape]   = useState(null)
+  const [showNestEscapes, setShowNestEscapes]   = useState(false)
+  const [selectedEscape, setSelectedEscape]     = useState(null)
   const { toggleWishlist, isWishlisted } = useWishlist()
 
   const [highlightDates, setHighlightDates] = useState(false)
@@ -432,6 +431,14 @@ export default function HomestayPage({ onLogoClick }) {
         await checkAndRestoreExpiredRooms(h.id, roomIds)
         const availability = await fetchRoomAvailability(h.id, roomIds, checkIn || undefined, checkOut || undefined)
         setLiveAvailability(availability)
+
+        // ── Fix 1: only deselect rooms that are now unavailable for the new dates ──
+        // Do NOT clear all selected rooms just because dates changed.
+        setSelectedRooms(prev => prev.filter(sel => {
+          const key  = resolveRoomKey(sel.id)
+          const live = availability.get(key) ?? availability.get(sel.id)
+          return live ? !live.booked : true
+        }))
       } catch (err) {
         console.warn("Firestore unavailable, falling back to static room data:", err.message)
         const fallback = new Map()
@@ -477,10 +484,12 @@ export default function HomestayPage({ onLogoClick }) {
       }
       return checkIn && checkOut ? "Unavailable for selected dates" : "Currently booked"
     }
-    const aliasTwin = selectedRooms.find(
+    // ── Fix 2: alias twin — don't reveal it's the same room ──
+    // Show a capacity-style message that makes sense to guests
+    const isAliasTwin = selectedRooms.some(
       sel => sel.id !== room.id && resolveRoomKey(sel.id) === resolveRoomKey(room.id)
     )
-    if (aliasTwin) return "Same room as " + aliasTwin.name
+    if (isAliasTwin) return "Capacity limit reached for this unit"
     return "Unavailable"
   }
 
@@ -505,12 +514,14 @@ export default function HomestayPage({ onLogoClick }) {
 
   const getTodayDate = () => new Date().toISOString().split("T")[0]
 
+  // ── Fix 1 continued: date handlers no longer call setSelectedRooms([]) ──
+  // Room deselection only happens in the useEffect above when availability
+  // is re-fetched and a selected room turns out to be booked for new dates.
   const handleCheckInChange = (value) => {
     if (value < getTodayDate()) return
     setCheckIn(value)
     setHighlightDates(false)
     if (checkOut && checkOut < value) setCheckOut("")
-    setSelectedRooms([])
   }
 
   const handleCheckOutChange = (value) => {
@@ -518,7 +529,6 @@ export default function HomestayPage({ onLogoClick }) {
     if (!checkIn && value <= getTodayDate()) return
     setCheckOut(value)
     setHighlightDates(false)
-    setSelectedRooms([])
   }
 
   if (!h) return (
@@ -558,16 +568,16 @@ export default function HomestayPage({ onLogoClick }) {
     if (!checkIn || !checkOut) return null
     try {
       const bookingId = await confirmBookingInFirestore({
-        homestayId:  h.id,
-        roomIds:     selectedRooms.map(r => resolveRoomKey(r.id)),
+        homestayId:    h.id,
+        roomIds:       selectedRooms.map(r => resolveRoomKey(r.id)),
         checkIn,
         checkOut,
         guests,
         nights,
-        totalAmount: subtotal,
-        platformFee: 0,
-        guestName:    guestDetails?.name || "",
-        guestContact: guestDetails?.contact || "",
+        totalAmount:   subtotal,
+        platformFee:   0,
+        guestName:     guestDetails?.name || "",
+        guestContact:  guestDetails?.contact || "",
         guestWhatsapp: guestDetails?.whatsapp || "",
       })
       setLiveAvailability(prev => {
@@ -777,6 +787,9 @@ export default function HomestayPage({ onLogoClick }) {
               const isUnavailable = unavailableRoomIds.has(room.id)
               const reason        = isUnavailable ? unavailableReason(room) : null
 
+              // Use a softer amber colour for capacity-limit badges vs hard red for booked
+              const isCapacityLimit = isUnavailable && reason === "Capacity limit reached for this unit"
+
               return (
                 <div key={room.id} onClick={() => !isUnavailable && toggleRoom(room)}
                   className={"w-full text-left rounded-2xl p-4 border-2 transition " + (
@@ -798,7 +811,10 @@ export default function HomestayPage({ onLogoClick }) {
                         </span>
                         {isUnavailable && (
                           <span className="text-xs px-2 py-0.5 rounded-full font-medium"
-                            style={{ background: "rgba(239,68,68,0.12)", color: "#ef4444", border: "1px solid rgba(239,68,68,0.2)" }}>
+                            style={isCapacityLimit
+                              ? { background: "rgba(139,105,20,0.12)", color: "#8B6914", border: "1px solid rgba(139,105,20,0.3)" }
+                              : { background: "rgba(239,68,68,0.12)", color: "#ef4444", border: "1px solid rgba(239,68,68,0.2)" }
+                            }>
                             {reason}
                           </span>
                         )}
@@ -977,7 +993,7 @@ export default function HomestayPage({ onLogoClick }) {
               </div>
             </div>
 
-            {/* Book Now button — unified, no payment */}
+            {/* Book Now button */}
             <div className="bg-[#1a2a1a] border border-[#2D5A3D]/40 rounded-xl px-3 py-2 mb-3">
               <p className="text-[#2D5A3D] text-xs font-semibold">💰 Pay at homestay on arrival</p>
               <p className="text-[#9a9a9a] text-xs mt-0.5">
