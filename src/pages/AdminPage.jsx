@@ -18,7 +18,7 @@ import {
 import { homestays } from "../data/homestays"
 
 // ── Admin phone whitelist ────────────────────────────────────
-const ADMIN_PHONES = ["+917035464202"]
+const ADMIN_PHONES = VITE_ADMIN_PHONE
 
 // ── Soul Nest brand tokens ───────────────────────────────────
 const C = {
